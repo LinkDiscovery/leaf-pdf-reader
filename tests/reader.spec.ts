@@ -33,6 +33,18 @@ test.beforeEach(async ({page}) => {
     if(word==='unfindableword') {await route.fulfill({status:404,json:{title:'No Definitions Found'}});return;}
     await route.fulfill({json:entry(word)});
   });
+  await page.route('https://translate.googleapis.com/**', async route => {
+    const url=new URL(route.request().url());
+    const word=(url.searchParams.get('q')||'').toLowerCase();
+    if(word==='slowword') await new Promise(resolve=>setTimeout(resolve,400));
+    const map:Record<string,any>={
+      running:[[['달리기','running',null,null,10]],[['noun',['달리기','주력'],[['달리기',['running','race']],['주력',['running']]]]]],
+      hello:[[['여보세요','hello',null,null,10]],[['interjection',['여보세요','안녕하세요'],[['여보세요',['hello','hi']],['안녕하세요',['hello']]]]]],
+      book:[[['책, 도서','book',null,null,10]],[['noun',['책, 도서','서적'],[['책, 도서',['book','volume']],['서적',['book','publication']]]]]],
+      curiosity:[[['호기심','curiosity',null,null,10]],[['noun',['호기심','진기함'],[['호기심',['curiosity']],['진기함',['novelty','curiosity']]]]]]
+    };
+    await route.fulfill({json:map[word]||[[['뜻: '+word,word,null,null,10]],[['noun',['뜻: '+word],[['뜻: '+word,[word]]]]]]});
+  });
 });
 test('home layout, local Korean inflections, latest result, offline English failure',async({page})=>{
   await page.goto('/');
@@ -41,6 +53,7 @@ test('home layout, local Korean inflections, latest result, offline English fail
   await page.locator('#word-input').fill(' “Running!” ');
   await page.locator('#dictionary-form').evaluate(form=>(form as HTMLFormElement).requestSubmit());
   await expect(page.locator('#word-title')).toHaveText('running');
+  await expect(page.locator('#korean-badge')).toHaveText('온라인 API');
   await expect(page.locator('#korean-result')).toContainText('달리');
   await expect(page.locator('#english-result')).toContainText('A definition for running');
   await page.locator('#word-input').fill('slowword');await page.locator('#word-input').press('Enter');
@@ -50,9 +63,12 @@ test('home layout, local Korean inflections, latest result, offline English fail
   await expect(page.locator('#word-title')).toHaveText('hello');
   await expect(page.locator('#english-result')).not.toContainText('slowword');
   await page.unroute('https://api.dictionaryapi.dev/**');
+  await page.unroute('https://translate.googleapis.com/**');
   await page.route('https://api.dictionaryapi.dev/**',route=>route.abort('internetdisconnected'));
+  await page.route('https://translate.googleapis.com/**',route=>route.abort('internetdisconnected'));
   await page.locator('#word-input').fill('book');await page.locator('#word-input').press('Enter');
   await expect(page.locator('#english-result')).toContainText('연결할 수 없어요');
+  await expect(page.locator('#korean-badge')).toHaveText('오프라인 내장');
   await expect(page.locator('#korean-result')).toContainText('책');
 });
 test('real double click and drag, recolor, saved identity, delete, zoom and export',async({page})=>{
