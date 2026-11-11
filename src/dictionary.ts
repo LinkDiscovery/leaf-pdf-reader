@@ -21,6 +21,9 @@ type OnlineKoreanResult = {
 export function normalizeWord(value: string) {
   return value.normalize('NFKC').trim().replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, '').toLowerCase();
 }
+function normalizeSentence(value: string) {
+  return value.normalize('NFKC').replace(/\s+/g, ' ').trim();
+}
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, value: string, className?: string) {
   const node = document.createElement(tag); node.textContent = value;
   if (className) node.className = className;
@@ -143,12 +146,12 @@ export function setupDictionary() {
       if (token === sequence) message(ko, '영한 사전 파일을 읽지 못했어요. 앱을 다시 실행한 뒤 검색해 주세요.');
     });
   }
-  function renderOnlineKorean(result: OnlineKoreanResult, token: number) {
+  function renderOnlineKorean(result: OnlineKoreanResult, token: number, isSentence = false) {
     if (token !== sequence) return;
-    if (koBadge) koBadge.textContent = '온라인 API';
+    if (koBadge) koBadge.textContent = isSentence ? '문장 번역 API' : '온라인 API';
     ko.replaceChildren();
     const article = element('article', '', 'local-entry');
-    if (result.groups.length) {
+    if (result.groups.length && !isSentence) {
       const allMeanings = new Set(result.groups.flatMap(g => g.items.map(i => i.meaning)));
       if (result.primary && !allMeanings.has(result.primary)) {
         const primaryGroup = element('section', '', 'ko-meaning-group');
@@ -180,7 +183,7 @@ export function setupDictionary() {
       }
     } else if (result.primary) {
       const group = element('section', '', 'ko-meaning-group');
-      group.append(element('span', '뜻', 'ko-pos'));
+      group.append(element('span', isSentence ? '한국어 번역' : '뜻', 'ko-pos'));
       const list = element('ol', '', 'ko-meanings');
       const row = element('li', '', 'ko-meaning');
       row.append(element('strong', result.primary, 'ko-translation'));
@@ -191,51 +194,76 @@ export function setupDictionary() {
     ko.append(article);
   }
   async function search(value: string) {
+    const cleanedSentence = normalizeSentence(value);
     const word = normalizeWord(value);
-    if (!word || word.length > 100 || !/^[a-z][a-z'’ -]*$/.test(word)) {
+    const isWordQuery = word.length > 0 && word.length <= 100 && /^[a-z][a-z'’ -]*$/.test(word) && word.split(/\s+/).length <= 3;
+    const isSentenceQuery = !isWordQuery && cleanedSentence.length > 0 && cleanedSentence.length <= 1000 && /[a-zA-Z]/.test(cleanedSentence);
+    if (!isWordQuery && !isSentenceQuery) {
       input.setCustomValidity('영어 단어 또는 짧은 구문을 입력하세요.'); input.reportValidity(); return;
     }
     input.setCustomValidity('');
+    const query = isWordQuery ? word : cleanedSentence;
     const token = ++sequence;
     abort?.abort();
     abort = new AbortController();
     const signal = abort.signal;
-    input.value = word; title.textContent = word;
+    input.value = query;
+    title.textContent = isWordQuery ? word : (query.length > 42 ? query.slice(0, 42) + '…' : query);
     document.querySelector('#dictionary-empty')!.setAttribute('hidden', '');
     document.querySelector('#dictionary-content')!.removeAttribute('hidden');
-    message(en, '영영 뜻을 찾고 있어요…'); message(ko, '영한 뜻을 찾고 있어요…');
-    const index = history.indexOf(word); if (index >= 0) history.splice(index, 1);
-    history.unshift(word); history.splice(7);
-    recent.replaceChildren(...history.map(w => {
-      const button = element('button', w, 'word-chip'); button.type = 'button';
-      button.onclick = () => void search(w); return button;
-    }));
+    if (isSentenceQuery) {
+      en.replaceChildren();
+      const hint = element('p', '문장 속 단어를 누르면 단어 사전으로 바로 이동해요.', 'muted');
+      const wrap = document.createElement('div');
+      wrap.style.display = 'flex'; wrap.style.flexWrap = 'wrap'; wrap.style.gap = '6px'; wrap.style.marginTop = '8px';
+      const words = [...new Set(query.split(/[^a-zA-Z'’-]+/).map(w => normalizeWord(w)).filter(w => w.length >= 2))].slice(0, 18);
+      for (const w of words) {
+        const chip = element('button', w, 'word-chip');
+        chip.type = 'button';
+        chip.onclick = () => void search(w);
+        wrap.append(chip);
+      }
+      en.append(hint, wrap);
+      message(ko, '문장을 번역하고 있어요…');
+    } else {
+      message(en, '영영 뜻을 찾고 있어요…'); message(ko, '영한 뜻을 찾고 있어요…');
+      const index = history.indexOf(word); if (index >= 0) history.splice(index, 1);
+      history.unshift(word); history.splice(7);
+      recent.replaceChildren(...history.map(w => {
+        const button = element('button', w, 'word-chip'); button.type = 'button';
+        button.onclick = () => void search(w); return button;
+      }));
+    }
     // Korean lookup: Online API first, built-in local dictionary fallback when offline or unfound
     void (async () => {
-      if (koCache.has(word)) {
-        const cached = koCache.get(word)!;
-        if (cached) renderOnlineKorean(cached, token);
-        else renderLocalKorean(word, token);
+      if (koCache.has(query)) {
+        const cached = koCache.get(query)!;
+        if (cached) renderOnlineKorean(cached, token, isSentenceQuery);
+        else if (isWordQuery) renderLocalKorean(word, token);
+        else message(ko, '문장 번역 결과를 가져오지 못했어요.');
         return;
       }
       try {
-        const koUrl = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&dt=bd&q=' + encodeURIComponent(word);
+        const koUrl = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&dt=bd&q=' + encodeURIComponent(query);
         const response = await fetch(koUrl, { signal });
         if (!response.ok) throw new Error('Korean API error');
         const data = await response.json();
-        const parsed = parseOnlineKorean(data, word);
+        const parsed = parseOnlineKorean(data, query);
         if (!parsed) {
-          koCache.set(word, null);
-          renderLocalKorean(word, token);
+          koCache.set(query, null);
+          if (isWordQuery) renderLocalKorean(word, token);
+          else message(ko, '번역할 수 없는 문장이에요.');
           return;
         }
-        koCache.set(word, parsed);
-        renderOnlineKorean(parsed, token);
+        koCache.set(query, parsed);
+        renderOnlineKorean(parsed, token, isSentenceQuery);
       } catch {
         if (signal.aborted && token !== sequence) return;
-        renderLocalKorean(word, token);
+        if (isWordQuery) renderLocalKorean(word, token);
+        else message(ko, '오프라인 상태여서 문장 번역 API에 연결할 수 없어요. 개별 단어를 눌러 내장 영한 사전을 이용해 보세요.');
       }
     })();
+    if (isSentenceQuery) return;
     const renderEnglish = (entries: EnglishEntry[] | null) => {
       if (token !== sequence) return;
       if (!entries) { message(en, '등록된 영영 뜻이 없어요. 다른 형태의 단어로 검색해 보세요.'); return; }
