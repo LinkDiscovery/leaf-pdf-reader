@@ -1,18 +1,24 @@
-# Leaf PDF 리더
+# Leaf PDF 리더 (Leaf PDF Reader)
 
-계획서에 맞춰 만든 Windows용 로컬 PDF 읽기 앱입니다. 프로젝트와 실행 파일은 **D:\pdf-reader**에 있습니다.
+영어 원서·논문 읽기에 필요한 **영영·영한 사전, 문장 번역, 형광펜·메모, AI 바로가기(Claude·GPT·Gemini)**를 한 화면에 담은 PDF 리더입니다. 열람하는 PDF 파일은 외부 서버로 업로드되지 않고 **100% 사용자의 브라우저 안에서만 안전하게 동작**합니다.
+
+- 🚀 **설치 없이 웹에서 바로 써보기:** **[https://linkdiscovery.github.io/leaf-pdf-reader/](https://linkdiscovery.github.io/leaf-pdf-reader/)**
+- 💬 **피드백 · 기능 제안 남기기:** **[GitHub Issues에 의견 남기기 ↗](https://github.com/LinkDiscovery/leaf-pdf-reader/issues/new?template=feedback.md)**
 
 ![Leaf PDF Reader 작동 시연](demo/leaf-pdf-reader-demo.gif)
 
 - **고화질 원본 영상 다운로드:** [demo/leaf-pdf-reader-demo.webm](demo/leaf-pdf-reader-demo.webm)
 
-## 실행
+## 실행 방법 (웹 또는 내 컴퓨터)
 
-1. **D:\pdf-reader\PDF-Reader.cmd**를 더블클릭하세요.
-2. 브라우저가 열리면 **PDF 열기**를 누르거나 PDF를 화면으로 끌어놓으세요.
-3. 실행한 명령 창은 읽는 동안 열어 두세요. 종료할 때 창을 닫거나 Ctrl+C를 누르면 됩니다.
+### 방법 1. 웹에서 바로 실행 (설치 불필요 · 추천)
+1. **[https://linkdiscovery.github.io/leaf-pdf-reader/](https://linkdiscovery.github.io/leaf-pdf-reader/)** 에 접속합니다.
+2. **PDF 열기**를 누르거나 내 컴퓨터의 PDF 파일을 화면으로 끌어놓으면 바로 사용할 수 있습니다.
 
-실행 주소는 항상 http://127.0.0.1:4173 입니다. Node.js와 빌드 결과가 이 컴퓨터에 준비되어 있으므로 바로 실행할 수 있습니다. 포트 4173을 다른 프로그램이 사용 중이면 해당 프로그램을 닫은 뒤 다시 실행하세요.
+### 방법 2. 내 컴퓨터에 다운로드해서 로컬 실행 (Windows)
+1. 이 저장소를 `git clone https://github.com/LinkDiscovery/leaf-pdf-reader.git` 하거나 우측 상단 **Code → Download ZIP**으로 내려받습니다 ([Node.js 22+](https://nodejs.org/) 필요).
+2. 폴더 안의 **`PDF-Reader.cmd`**를 더블클릭하면 자동으로 빌드 후 브라우저(`http://127.0.0.1:4173`)가 열립니다.
+3. 실행한 명령 창은 읽는 동안 열어 두세요. 종료할 때 창을 닫거나 `Ctrl+C`를 누르면 됩니다.
 
 ## 사용법
 

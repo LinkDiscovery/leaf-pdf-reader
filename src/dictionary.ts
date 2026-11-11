@@ -50,7 +50,7 @@ const posNames: Record<string, string> = {
   'phrase': '구문', 'abbreviation': '약어', 'auxiliary verb': '조동사'
 };
 function localDictionary() {
-  return localPromise ??= fetch('/dictionary/en-ko.json').then(r => {
+  return localPromise ??= fetch(import.meta.env.BASE_URL + 'dictionary/en-ko.json').then(r => {
     if (!r.ok) throw new Error('Dictionary unavailable');
     return r.json();
   }).catch(error => { localPromise = undefined; throw error; });

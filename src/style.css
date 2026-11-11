@@ -1604,7 +1604,7 @@ dialog form>div {
 }
 
 @media(max-width:720px) {
-    .ai-shortcuts {
+    .ai-shortcuts, .feedback-button {
         display: none
     }
 }

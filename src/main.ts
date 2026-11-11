@@ -243,7 +243,8 @@ async function openFile(file: File) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const id = await documentHash(bytes);
     if (token !== openGeneration) return;
-    const task = getDocument({ data: bytes.slice(), cMapUrl: '/pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: '/pdfjs/standard_fonts/', wasmUrl: '/pdfjs/wasm/' });
+    const base = import.meta.env.BASE_URL;
+    const task = getDocument({ data: bytes.slice(), cMapUrl: base + 'pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: base + 'pdfjs/standard_fonts/', wasmUrl: base + 'pdfjs/wasm/' });
     loading = task;
     task.onPassword = (updatePassword: (password: string) => void, reason: number) => {
       if (token !== openGeneration) return;
