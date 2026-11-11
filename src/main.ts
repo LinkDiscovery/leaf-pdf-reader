@@ -381,6 +381,15 @@ $('#note-remove').onclick = () => {
 tools.addEventListener('pointerdown', event => event.preventDefault());
 $('#delete-highlight').onclick = () => { highlights = highlights.filter(h => h.id !== editingId); persist(); closeTools(); };
 $('#selection-lookup').onclick = () => { void search(selectedText); closeTools(); };
+for (const link of document.querySelectorAll<HTMLAnchorElement>('.ai-link')) {
+  link.addEventListener('click', () => {
+    const text = window.getSelection()?.toString().trim() || selectedText;
+    if (text) {
+      void navigator.clipboard?.writeText(text).catch(() => {});
+      notify('선택한 문장을 클립보드에 복사했어요. 열린 AI 창에 붙여넣어(Ctrl+V) 질문해 보세요.');
+    }
+  });
+}
 $('#close-selection').onclick = closeTools;
 pages.addEventListener('pointerup', () => { clearTimeout(selectionTimer); selectionTimer = window.setTimeout(captureSelection, 30); });
 pages.addEventListener('keyup', captureSelection);

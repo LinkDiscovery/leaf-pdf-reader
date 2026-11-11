@@ -72,8 +72,16 @@
 @media(max-width:720px){.workspace{grid-template-columns:minmax(0,1fr)}#panel-divider{display:none}.dictionary-header{display:flex;flex-wrap:wrap;gap:10px}.dictionary-header h2{flex:1}.dictionary-display-options{margin:0}.dictionary-display-options>span{display:none}#dictionary-form{width:100%}.toolbar-group:nth-child(2){margin:0 0 0 auto}#zoom-label{min-width:64px}.reader-toolbar .text-button{font-size:10px;padding:4px}.note-editor-footer{flex-wrap:wrap}}
 
 .reader{container-type:inline-size}
+.ai-shortcuts{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.ai-link{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;border:1px solid #d7e0d2;border-radius:6px;background:#fff;font-size:11px;font-weight:600;color:#3d5240;transition:background .15s,border-color .15s,transform .1s;white-space:nowrap}
+.ai-link:hover{background:#f2f6ee;border-color:#b8c8b0}
+.ai-link.claude svg{color:#c96442}
+.ai-link.gpt svg{color:#10a37f}
+.ai-link.gemini svg{color:#4285f4}
+@media(max-width:1150px){.ai-link span{display:none}.ai-link{padding:5px}}
+@media(max-width:720px){.ai-shortcuts{display:none}}
 @container(max-width:540px){
  .reader-toolbar{height:auto;min-height:62px;flex-wrap:wrap;justify-content:center;gap:4px;padding:8px}
  .reader-toolbar .toolbar-group:nth-child(2){margin:0}
- .highlight-counter{display:none}
+ .highlight-counter,.ai-shortcuts{display:none}
 }
