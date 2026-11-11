@@ -2,6 +2,8 @@
 
 계획서에 맞춰 만든 Windows용 로컬 PDF 읽기 앱입니다. 프로젝트와 실행 파일은 **D:\pdf-reader**에 있습니다.
 
+- **작동 시연 영상:** [demo/leaf-pdf-reader-demo.webm](demo/leaf-pdf-reader-demo.webm)
+
 ## 실행
 
 1. **D:\pdf-reader\PDF-Reader.cmd**를 더블클릭하세요.
