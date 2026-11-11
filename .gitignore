@@ -1,0 +1,10 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+.cache/
+public/pdfjs/
+.env
+.env.*
+!.env.example
+*.log

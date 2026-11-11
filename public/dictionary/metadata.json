@@ -1,0 +1,12 @@
+{
+  "name": "KOReader Dicts · English → Korean",
+  "source": "https://danielgregorini.github.io/koreader-dicts/en/en-ko/",
+  "download": "https://github.com/DanielGregorini/koreader-dicts/releases/latest/download/en-ko.zip",
+  "version": "2026.09.11",
+  "sha256": "219eacf3f57e93da993a9ba438d3c3eaf3fa3b94de745847fe74826cb776ccf1",
+  "license": "CC-BY-SA-4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "changes": "StarDict HTML entries and synonym links converted to indexed JSON; original definitions unchanged.",
+  "entries": 25985,
+  "synonymLinks": 79218
+}
