@@ -51,4 +51,23 @@ export function setupReadingPreferences() {
   handle.ondblclick = () => resize(400, true);
   new ResizeObserver(() => resize(preferredWidth)).observe(workspace);
   resize(preferredWidth); applyFont();
+
+  const cursor = document.createElement('div');
+  cursor.id = 'leaf-cursor';
+  cursor.setAttribute('aria-hidden', 'true');
+  document.body.append(cursor);
+  document.addEventListener('pointermove', event => {
+    if (event.pointerType === 'touch') return;
+    cursor.style.setProperty('--cx', event.clientX + 'px');
+    cursor.style.setProperty('--cy', event.clientY + 'px');
+    cursor.classList.add('visible');
+  }, { passive: true });
+  document.addEventListener('pointerdown', event => {
+    if (event.pointerType === 'touch') return;
+    cursor.classList.add('active');
+  }, { passive: true });
+  const release = () => cursor.classList.remove('active');
+  document.addEventListener('pointerup', release, { passive: true });
+  document.addEventListener('pointercancel', release, { passive: true });
+  document.addEventListener('mouseleave', () => cursor.classList.remove('visible', 'active'));
 }
