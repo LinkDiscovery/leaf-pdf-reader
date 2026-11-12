@@ -27,6 +27,7 @@ async function records(page:Page) {
   });
 }
 test.beforeEach(async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('leaf-tour-seen', '1'));
   await page.route('https://api.dictionaryapi.dev/**', async route => {
     const word=decodeURIComponent(route.request().url().split('/').at(-1)!);
     if(word==='slowword') await new Promise(resolve=>setTimeout(resolve,400));

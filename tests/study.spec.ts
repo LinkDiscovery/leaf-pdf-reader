@@ -3,6 +3,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('leaf-tour-seen', '1'));
   await page.route('**/firebase-config.json', route => route.fulfill({ json: null }));
   await page.route('https://api.dictionaryapi.dev/**', route => route.fulfill({ json: [{ word: 'retain', meanings: [{ partOfSpeech: 'verb', definitions: [{ definition: 'To keep something.', example: 'Reading helps us retain words.' }] }] }] }));
   await page.route('https://translate.googleapis.com/**', route => route.fulfill({ json: [[['기억하다', 'retain']]] }));
@@ -56,6 +57,43 @@ test('backup round trip, duplicate import and invalid file rejection', async ({ 
   await expect(page.locator('#study-error')).toContainText('백업 파일'); await expect(page.locator('.study-card')).toHaveCount(1);
 });
 
+test('selection toolbar saves words directly and restores highlighted text and source after reload', async ({ page }) => {
+  await page.locator('#file-input').setInputFiles(path.resolve('tests/fixtures/reading.pdf'));
+  await expect(page.locator('.pdf-page[data-index="0"][data-ready="true"] .textLayer span').first()).toBeVisible();
+  // An unrelated dictionary result must never become this word's meaning.
+  await page.locator('#word-input').fill('retain'); await page.locator('#word-input').press('Enter');
+  await expect(page.locator('#english-result')).toContainText('To keep something.');
+  const selectWord = async () => {
+    await page.evaluate(() => {
+      const span = [...document.querySelectorAll('.pdf-page[data-index="0"] .textLayer span')].find(el => el.textContent?.includes('Hello world'))!;
+      const range = document.createRange(); range.setStart(span.firstChild!, 0); range.setEnd(span.firstChild!, 5);
+      const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+      document.querySelector('#pages')!.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    });
+    await expect(page.locator('#selection-word-save')).toBeVisible();
+  };
+  await selectWord(); await page.locator('#selection-word-save').click();
+  await expect(page.locator('#study-editor-title')).toHaveText('단어 저장');
+  await expect(page.locator('#study-text')).toHaveValue('Hello');
+  await expect(page.locator('#study-example')).toHaveValue(/Hello world/);
+  await expect(page.locator('#study-source')).toHaveValue('reading.pdf'); await expect(page.locator('#study-page')).toHaveValue('1');
+  await expect(page.locator('#study-english')).toHaveValue(''); await expect(page.locator('#study-korean')).toHaveValue('');
+  await page.locator('#study-korean').fill('안녕하세요'); await page.locator('#study-submit').click();
+  await expect(page.locator('#study-editor')).toBeHidden();
+  await selectWord(); await page.locator('#selection-tools [data-color=yellow]').click();
+  await expect(page.locator('#save-status')).toContainText('저장');
+  await page.reload(); await page.locator('#file-input').setInputFiles(path.resolve('tests/fixtures/reading.pdf'));
+  await expect(page.locator('.highlight').first()).toBeVisible();
+  await page.locator('.highlight').first().click(); await page.locator('#selection-word-save').click();
+  await expect(page.locator('#study-text')).toHaveValue('Hello'); await expect(page.locator('#study-page')).toHaveValue('1');
+  await page.locator('#study-dismiss').click();
+  await page.locator('.highlight').first().click(); await page.locator('#selection-save').click();
+  await expect(page.locator('#study-editor-title')).toHaveText('문장 저장'); await expect(page.locator('#study-text')).toHaveValue('Hello');
+  await page.locator('#study-dismiss').click();
+  await page.getByRole('tab', { name: '나의 단어장' }).click(); await expect(page.locator('.study-card')).toContainText('안녕하세요');
+  await page.getByRole('tab', { name: '나의 문장' }).click(); await expect(page.locator('.study-card')).toHaveCount(0);
+});
+
 test('first screen help, keyboard dismissal and readable UI scaling persist without changing PDF zoom', async ({ page }) => {
   await expect(page.locator('#welcome-guide-title')).toBeVisible();
   await page.locator('#welcome-help').click();
@@ -81,6 +119,7 @@ test('first screen help, keyboard dismissal and readable UI scaling persist with
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.locator('#help-open').click();
+  await page.locator('#tour-reference').click();
   await page.locator('#help-done').scrollIntoViewIfNeeded();
   expect(await page.locator('#help-dialog').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/help-mobile-large.png', fullPage: true });

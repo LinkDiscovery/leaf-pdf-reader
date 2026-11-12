@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
+test.beforeEach(async ({ page }) => { await page.addInitScript(() => localStorage.setItem('leaf-tour-seen', '1')); });
 async function login(page: Page, email: string) {
+  await page.addInitScript(() => localStorage.setItem('leaf-tour-seen', '1'));
   await page.goto('/'); await expect(page.locator('#study-login')).toBeVisible();
   await page.evaluate(async email => { const driver = await import('/tests/sync/auth-driver.ts'); await driver.login(email); }, email);
   await expect(page.locator('#study-sync')).toContainText('동기화 완료');

@@ -7,6 +7,7 @@ import { documentHash, getHighlights, saveHighlights, colors, type Highlight, ty
 import { setupDictionary, dictionaryStudyDraft } from './dictionary';
 import { setupStudy } from './study';
 import { setupHelp } from './help';
+import { type StudyKind } from './study-model';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import './style.css';
 import './readability.css';
@@ -23,7 +24,6 @@ const search = setupDictionary();
 $('#example-search').onclick = () => void search('curiosity');
 const study = setupStudy(notify);
 setupReadingPreferences();
-setupHelp();
 const dictionarySave = document.createElement('button');
 dictionarySave.id = 'dictionary-save'; dictionarySave.className = 'button secondary'; dictionarySave.hidden = true;
 $('#word-title').after(dictionarySave);
@@ -31,13 +31,26 @@ dictionarySave.onclick = () => study.openEditor(dictionaryStudyDraft());
 const sentenceSave = document.createElement('button');
 sentenceSave.id = 'selection-save'; sentenceSave.className = 'text-button'; sentenceSave.textContent = '문장 저장';
 $('#selection-note').after(sentenceSave);
-sentenceSave.onclick = () => {
-  const text = editingId ? highlights.find(h => h.id === editingId)?.quote || '' : selectedText;
-  if (!text) { notify('저장할 문장을 먼저 드래그해 주세요.'); return; }
+const wordSave = document.createElement('button');
+wordSave.id = 'selection-word-save'; wordSave.className = 'text-button'; wordSave.textContent = '단어장 추가';
+sentenceSave.before(wordSave);
+wordSave.onclick = () => saveSelection('word');
+sentenceSave.onclick = () => saveSelection('sentence');
+function saveSelection(kind: StudyKind) {
+  const highlight = highlights.find(h => h.id === editingId);
+  const text = (highlight?.quote || selectedText).replace(/\s+/g, ' ').trim();
+  if (!text) { notify('저장할 원문을 다시 드래그해 주세요. 이전에 만든 일부 형광펜에는 원문이 남아 있지 않아요.'); return; }
+  const pageIndex = (highlight?.regions || selectedRegions)[0]?.pageIndex ?? current - 1;
   const lookup = dictionaryStudyDraft();
-  study.openEditor({ kind: 'sentence', text: text.slice(0, 4000), english: '', korean: lookup.kind === 'sentence' && lookup.text === text.replace(/\s+/g, ' ').trim() ? lookup.korean : '', example: '', note: '', source: fileName, page: selectedRegions[0] ? selectedRegions[0].pageIndex + 1 : current });
+  const matches = lookup.text.toLocaleLowerCase() === text.toLocaleLowerCase();
+  const pageText = [...pages.querySelectorAll(`.pdf-page[data-index="${pageIndex}"] .textLayer span`)].map(span => span.textContent).join(' ');
+  const example = (pageText.match(/[^.!?]+[.!?]*/g) || []).find(sentence => sentence.toLowerCase().includes(text.toLowerCase()))?.trim() || '';
+  study.openEditor({ kind, text: text.slice(0, 4000), english: kind === 'word' && matches ? lookup.english : '', korean: matches ? lookup.korean : '', example: kind === 'word' ? (example || (matches ? lookup.example : '')).slice(0, 4000) : '', note: '', source: fileName, page: pageIndex + 1 });
+  clearTimeout(selectionTimer);
   closeTools();
-};
+  window.getSelection()?.removeAllRanges();
+}
+setupHelp();
 const passwordDialog = $<HTMLDialogElement>('#password-dialog');
 const noteDialog = $<HTMLDialogElement>('#note-dialog');
 const noteText = $<HTMLTextAreaElement>('#note-text');
@@ -352,7 +365,7 @@ for (const button of tools.querySelectorAll<HTMLButtonElement>('[data-color]')) 
   button.onclick = () => {
     const color = button.dataset.color as Color;
     if (editingId) highlights = highlights.map(h => h.id === editingId ? { ...h, color } : h);
-    else if (selectedRegions.length) highlights.push({ id: crypto.randomUUID(), documentId, color, regions: structuredClone(selectedRegions) });
+    else if (selectedRegions.length) highlights.push({ id: crypto.randomUUID(), documentId, color, regions: structuredClone(selectedRegions), quote: selectedText.slice(0, 4000) });
     else return;
     persist(); window.getSelection()?.removeAllRanges(); closeTools();
   };
