@@ -56,6 +56,40 @@ test('backup round trip, duplicate import and invalid file rejection', async ({ 
   await expect(page.locator('#study-error')).toContainText('백업 파일'); await expect(page.locator('.study-card')).toHaveCount(1);
 });
 
+test('first screen help, keyboard dismissal and readable UI scaling persist without changing PDF zoom', async ({ page }) => {
+  await expect(page.locator('#welcome-guide-title')).toBeVisible();
+  await page.locator('#welcome-help').click();
+  await expect(page.getByRole('dialog', { name: '읽기부터 복습까지' })).toBeVisible();
+  await expect(page.locator('#help-close')).toBeFocused();
+  await page.screenshot({ path: 'test-results/help-desktop.png', fullPage: true });
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#help-dialog')).toBeHidden();
+  await expect(page.locator('#welcome-help')).toBeFocused();
+  await page.locator('#ui-font-size').selectOption('20');
+  await page.reload();
+  await expect(page.locator('#ui-font-size')).toHaveValue('20');
+  await expect(page.locator('html')).toHaveCSS('font-size', '20px');
+  await page.setViewportSize({ width: 1280, height: 720 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/home-large.png', fullPage: true });
+  await page.locator('#file-input').setInputFiles(path.resolve('tests/fixtures/reading.pdf'));
+  await expect(page.locator('.pdf-page[data-index="0"][data-ready="true"] .textLayer span').first()).toBeVisible();
+  await page.locator('#zoom-label').selectOption('125');
+  await page.locator('#ui-font-size').selectOption('18');
+  await expect(page.locator('#zoom-label')).toHaveValue('125');
+  await page.locator('#ui-font-size').selectOption('20');
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('#help-open').click();
+  await page.locator('#help-done').scrollIntoViewIfNeeded();
+  expect(await page.locator('#help-dialog').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/help-mobile-large.png', fullPage: true });
+  await page.locator('#help-done').click();
+  await page.getByRole('tab', { name: '나의 단어장' }).click();
+  await expect(page.locator('#study-add')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test('PDF selection saving, tab return preserves zoom and native cursor with optional click effect', async ({ page }) => {
   await page.locator('#file-input').setInputFiles(path.resolve('tests/fixtures/reading.pdf'));
   await expect(page.locator('.pdf-page[data-index="0"][data-ready="true"] .textLayer span').first()).toBeVisible();

@@ -6,8 +6,10 @@ import layout from './app.html?raw';
 import { documentHash, getHighlights, saveHighlights, colors, type Highlight, type Region, type Color } from './storage';
 import { setupDictionary, dictionaryStudyDraft } from './dictionary';
 import { setupStudy } from './study';
+import { setupHelp } from './help';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import './style.css';
+import './readability.css';
 
 document.querySelector('#app')!.innerHTML = layout;
 GlobalWorkerOptions.workerSrc = workerUrl;
@@ -21,6 +23,7 @@ const search = setupDictionary();
 $('#example-search').onclick = () => void search('curiosity');
 const study = setupStudy(notify);
 setupReadingPreferences();
+setupHelp();
 const dictionarySave = document.createElement('button');
 dictionarySave.id = 'dictionary-save'; dictionarySave.className = 'button secondary'; dictionarySave.hidden = true;
 $('#word-title').after(dictionarySave);

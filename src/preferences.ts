@@ -3,12 +3,17 @@ export function setupReadingPreferences() {
   const handle = document.querySelector<HTMLElement>('#panel-divider')!;
   const dictionary = document.querySelector<HTMLElement>('.dictionary')!;
   let preferredWidth = 400;
-  let fontSize = 16;
+  let fontSize = 18;
   try {
     preferredWidth = Number(localStorage.getItem('leaf-dictionary-width')) || 400;
-    fontSize = Number(localStorage.getItem('leaf-dictionary-font-size')) || 16;
+    fontSize = Number(localStorage.getItem('leaf-dictionary-font-size')) || 18;
   } catch {}
   function store(key: string, value: number) { try { localStorage.setItem(key, String(value)); } catch {} }
+  const uiFont = document.querySelector<HTMLSelectElement>('#ui-font-size')!;
+  try { const saved = localStorage.getItem('leaf-ui-font-size'); if (saved && ['16', '18', '20'].includes(saved)) uiFont.value = saved; } catch {}
+  const applyUiFont = () => { document.documentElement.style.fontSize = uiFont.value + 'px'; store('leaf-ui-font-size', Number(uiFont.value)); };
+  uiFont.onchange = applyUiFont;
+  applyUiFont();
   function limits() { return { min: 280, max: Math.max(280, Math.min(720, workspace.clientWidth - 340)) }; }
   function resize(width: number, remember = false) {
     if (!workspace.clientWidth) return;

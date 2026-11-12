@@ -16,9 +16,17 @@
       <div id="welcome">
         <div class="welcome-eyebrow">A LITTLE SPACE TO READ</div>
         <h1>읽는 흐름을<br><span>그대로 이어가세요.</span></h1>
-        <p class="welcome-description">단어의 뜻을 찾고, 마음에 남는 문장을 칠하고.<br>영어 읽기에 필요한 것들을 한곳에 담았어요.</p>
+        <p class="welcome-description">뜻을 찾고, 단어와 문장을 모으고, 다시 복습하세요.<br>PDF는 내 폴더에서 열고 학습 기록은 계정으로 이어갑니다.</p>
         <button id="drop-open" class="drop-card"><span class="document-art"><span>PDF</span><i></i><i></i><i></i></span><strong>PDF를 여기에 놓아주세요</strong><span>또는 클릭해서 내 컴퓨터에서 선택</span><span class="drop-badge">파일은 내 기기에서만 열립니다</span></button>
-        <div class="welcome-features"><span><b>01</b> 두 번 눌러 단어 찾기</span><span><b>02</b> 드래그해서 형광펜</span><span><b>03</b> 자동으로 저장</span></div>
+        <section class="welcome-guide" aria-labelledby="welcome-guide-title">
+          <div class="welcome-guide-heading"><h2 id="welcome-guide-title">이렇게 사용해 보세요</h2><button id="welcome-help" class="text-button">전체 사용법 ↗</button></div>
+          <ol class="welcome-steps">
+            <li><span class="step-number">1</span><h3>읽다가 뜻 찾기</h3><p>단어는 두 번 클릭.<br>문장은 드래그 후 <strong>뜻 · 번역</strong>.</p></li>
+            <li><span class="step-number">2</span><h3>내 기록에 모으기</h3><p>사전의 <strong>저장</strong> 버튼으로<br>뜻·예문을 확인하고 추가하세요.</p></li>
+            <li><span class="step-number">3</span><h3>탭에서 다시 복습</h3><p><strong>나의 단어장·나의 문장</strong>에서<br>뜻을 가리고 기억해 보세요.</p></li>
+          </ol>
+          <p class="welcome-storage">Google 로그인하면 단어·문장을 다른 컴퓨터에서도 볼 수 있어요. PDF는 직접 폴더로 관리하고, PDF 형광펜·메모는 이 브라우저에 저장됩니다.</p>
+        </section>
       </div>
       <div id="pages"></div>
       <div id="drop-overlay" hidden>PDF를 놓아 열기</div>

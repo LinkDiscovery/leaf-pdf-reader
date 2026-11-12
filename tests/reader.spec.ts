@@ -223,11 +223,11 @@ test('larger dictionary type and draggable panel preferences survive reload',asy
   await page.goto('/');
   await page.locator('#word-input').fill('book');await page.locator('#word-input').press('Enter');
   await expect(page.locator('.ko-translation').first()).toHaveText('책, 도서');
-  expect(await page.locator('.ko-translation').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBe(18);
+  expect(await page.locator('.ko-translation').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBe(20);
   await expect(page.locator('.ko-explanation').first()).not.toHaveAttribute('open','');
   await page.locator('#dictionary-font-up').click();
   await page.locator('#dictionary-font-up').click();
-  expect(await page.locator('.ko-translation').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBe(20);
+  expect(await page.locator('.ko-translation').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBe(22);
   const divider=page.locator('#panel-divider'),box=(await divider.boundingBox())!;
   const before=(await page.locator('.dictionary').boundingBox())!.width;
   await page.mouse.move(box.x+4,box.y+180);await page.mouse.down();
@@ -235,7 +235,7 @@ test('larger dictionary type and draggable panel preferences survive reload',asy
   expect((await page.locator('.dictionary').boundingBox())!.width).toBeGreaterThan(before+100);
   const width=await divider.getAttribute('aria-valuenow');
   await page.reload();
-  await expect(page.locator('#dictionary-font-size')).toHaveText('18px');
+  await expect(page.locator('#dictionary-font-size')).toHaveText('20px');
   await expect(divider).toHaveAttribute('aria-valuenow',width!);
   await divider.focus();await page.keyboard.press('ArrowRight');
   expect(Number(await divider.getAttribute('aria-valuenow'))).toBe(Number(width)-20);
