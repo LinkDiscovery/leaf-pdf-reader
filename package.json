@@ -1,6 +1,6 @@
 {
   "name": "leaf-pdf-reader",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,18 +9,23 @@
     "start": "node scripts/launch.mjs",
     "dictionary": "node scripts/convert-dictionary.mjs",
     "test": "playwright test",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-leaf-study \"node scripts/test-firestore-rules.mjs\"",
+    "test:sync": "firebase emulators:exec --only auth,firestore --project demo-leaf-study \"playwright test --config playwright.sync.config.ts\"",
     "prebuild": "node scripts/prepare-assets.mjs",
     "predev": "node scripts/prepare-assets.mjs"
   },
   "dependencies": {
-    "pdfjs-dist": "^5.4.0",
-    "pdf-lib": "^1.17.1"
+    "firebase": "^13.3.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.4.0"
   },
   "devDependencies": {
-    "typescript": "^5.9.0",
-    "vite": "^7.2.0",
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@playwright/test": "^1.56.0",
+    "@types/node": "^24.0.0",
     "fflate": "^0.8.2",
-    "@types/node": "^24.0.0"
+    "firebase-tools": "^15.36.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.2.0"
   }
 }

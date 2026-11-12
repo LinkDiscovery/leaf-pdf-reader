@@ -1573,7 +1573,7 @@ dialog form>div {
     z-index: 99999;
     opacity: 0;
     transform: translate3d(var(--cx, -40px), var(--cy, -40px), 0) translate(-50%, -50%) scale(1);
-    transition: transform .1s ease-out, background .12s ease, opacity .15s ease;
+    transition: background .12s ease, opacity .15s ease;
     box-shadow: 0 2px 8px rgba(0, 0, 0, .18)
 }
 
@@ -1587,7 +1587,11 @@ dialog form>div {
     border-color: #b88d19
 }
 
-@media(pointer:coarse) {
+@media(any-pointer:fine) {
+    html.leaf-pointer-active, html.leaf-pointer-active * { cursor: none !important; }
+}
+dialog #leaf-cursor { position: absolute; }
+@media(any-pointer:none) {
     #leaf-cursor {
         display: none
     }

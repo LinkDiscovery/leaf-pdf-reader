@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+    function validEntry(id) {
+      let e = request.resource.data;
+      return e.keys().hasAll(['id','kind','text','english','korean','example','note','source','page','learned','createdAt','updatedAt'])
+        && e.keys().hasOnly(['id','kind','text','english','korean','example','note','source','page','learned','createdAt','updatedAt'])
+        && e.id == id && id.matches('^[A-Za-z0-9_-]{1,100}$')
+        && e.kind in ['word','sentence']
+        && e.text is string && e.text.size() > 0 && e.text.size() <= 4000
+        && e.english is string && e.english.size() <= 4000
+        && e.korean is string && e.korean.size() <= 4000
+        && e.example is string && e.example.size() <= 4000
+        && e.note is string && e.note.size() <= 4000
+        && e.source is string && e.source.size() <= 500
+        && e.page is int && e.page >= 0 && e.page <= 1000000
+        && e.learned is bool && e.createdAt is number && e.updatedAt is number;
+    }
+    match /users/{uid}/studyEntries/{id} {
+      allow read, delete: if owner(uid);
+      allow create: if owner(uid) && validEntry(id);
+      allow update: if owner(uid) && validEntry(id)
+        && request.resource.data.kind == resource.data.kind
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+  }
+}

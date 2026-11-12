@@ -1,3 +1,7 @@
+import { emptyDraft, type StudyDraft } from './study-model';
+type ReadingSource = { source: string; page: number; example: string };
+let studyDraft: StudyDraft = emptyDraft('word');
+export function dictionaryStudyDraft(): StudyDraft { return { ...studyDraft }; }
 type LocalDictionary = {
   metadata: { version: string; entries: number };
   entries: [string, string][];
@@ -142,12 +146,14 @@ export function setupDictionary() {
         if (!article.querySelector('.ko-translation')) article.append(element('p', parsed.body.textContent || '뜻이 없어요.'));
         ko.append(article);
       }
+      studyDraft.korean = ko.querySelector('.ko-translation')?.textContent?.trim() || '';
     }).catch(() => {
       if (token === sequence) message(ko, '영한 사전 파일을 읽지 못했어요. 앱을 다시 실행한 뒤 검색해 주세요.');
     });
   }
   function renderOnlineKorean(result: OnlineKoreanResult, token: number, isSentence = false) {
     if (token !== sequence) return;
+    studyDraft.korean = result.primary || result.groups[0]?.items[0]?.meaning || '';
     if (koBadge) koBadge.textContent = isSentence ? '문장 번역 API' : '온라인 API';
     ko.replaceChildren();
     const article = element('article', '', 'local-entry');
@@ -193,7 +199,7 @@ export function setupDictionary() {
     }
     ko.append(article);
   }
-  async function search(value: string) {
+  async function search(value: string, source?: ReadingSource) {
     const cleanedSentence = normalizeSentence(value);
     const word = normalizeWord(value);
     const isWordQuery = word.length > 0 && word.length <= 100 && /^[a-z][a-z'’ -]*$/.test(word) && word.split(/\s+/).length <= 3;
@@ -204,6 +210,9 @@ export function setupDictionary() {
     input.setCustomValidity('');
     const query = isWordQuery ? word : cleanedSentence;
     const token = ++sequence;
+    studyDraft = { ...emptyDraft(isWordQuery ? 'word' : 'sentence'), text: query, source: source?.source || '', page: source?.page || 0, example: isWordQuery ? source?.example || '' : '' };
+    const saveButton = document.querySelector<HTMLButtonElement>('#dictionary-save');
+    if (saveButton) { saveButton.hidden = false; saveButton.textContent = isWordQuery ? '＋ 단어장에 저장' : '＋ 문장 모음에 저장'; }
     abort?.abort();
     abort = new AbortController();
     const signal = abort.signal;
@@ -220,7 +229,7 @@ export function setupDictionary() {
       for (const w of words) {
         const chip = element('button', w, 'word-chip');
         chip.type = 'button';
-        chip.onclick = () => void search(w);
+        chip.onclick = () => void search(w, { source: source?.source || '', page: source?.page || 0, example: query });
         wrap.append(chip);
       }
       en.append(hint, wrap);
@@ -267,6 +276,9 @@ export function setupDictionary() {
     const renderEnglish = (entries: EnglishEntry[] | null) => {
       if (token !== sequence) return;
       if (!entries) { message(en, '등록된 영영 뜻이 없어요. 다른 형태의 단어로 검색해 보세요.'); return; }
+      const firstDefinition = entries[0]?.meanings[0]?.definitions[0];
+      studyDraft.english = firstDefinition?.definition || '';
+      studyDraft.example ||= firstDefinition?.example || '';
       en.replaceChildren();
       for (const entry of entries) {
         const phonetic = entry.phonetic || entry.phonetics?.find(p => p.text)?.text;

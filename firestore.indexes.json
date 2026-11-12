@@ -1,0 +1,6 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    { "collectionGroup": "studyEntries", "fieldPath": "*", "indexes": [] }
+  ]
+}

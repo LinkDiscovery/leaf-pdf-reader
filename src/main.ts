@@ -4,7 +4,8 @@ import { exportAnnotatedPdf } from './export';
 import { setupReadingPreferences } from './preferences';
 import layout from './app.html?raw';
 import { documentHash, getHighlights, saveHighlights, colors, type Highlight, type Region, type Color } from './storage';
-import { setupDictionary } from './dictionary';
+import { setupDictionary, dictionaryStudyDraft } from './dictionary';
+import { setupStudy } from './study';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import './style.css';
 
@@ -19,6 +20,21 @@ const tools = $('#selection-tools');
 const search = setupDictionary();
 $('#example-search').onclick = () => void search('curiosity');
 setupReadingPreferences();
+const study = setupStudy(notify);
+const dictionarySave = document.createElement('button');
+dictionarySave.id = 'dictionary-save'; dictionarySave.className = 'button secondary'; dictionarySave.hidden = true;
+$('#word-title').after(dictionarySave);
+dictionarySave.onclick = () => study.openEditor(dictionaryStudyDraft());
+const sentenceSave = document.createElement('button');
+sentenceSave.id = 'selection-save'; sentenceSave.className = 'text-button'; sentenceSave.textContent = '문장 저장';
+$('#selection-note').after(sentenceSave);
+sentenceSave.onclick = () => {
+  const text = editingId ? highlights.find(h => h.id === editingId)?.quote || '' : selectedText;
+  if (!text) { notify('저장할 문장을 먼저 드래그해 주세요.'); return; }
+  const lookup = dictionaryStudyDraft();
+  study.openEditor({ kind: 'sentence', text: text.slice(0, 4000), english: '', korean: lookup.kind === 'sentence' && lookup.text === text.replace(/\s+/g, ' ').trim() ? lookup.korean : '', example: '', note: '', source: fileName, page: selectedRegions[0] ? selectedRegions[0].pageIndex + 1 : current });
+  closeTools();
+};
 const passwordDialog = $<HTMLDialogElement>('#password-dialog');
 const noteDialog = $<HTMLDialogElement>('#note-dialog');
 const noteText = $<HTMLTextAreaElement>('#note-text');
@@ -381,7 +397,7 @@ $('#note-remove').onclick = () => {
 
 tools.addEventListener('pointerdown', event => event.preventDefault());
 $('#delete-highlight').onclick = () => { highlights = highlights.filter(h => h.id !== editingId); persist(); closeTools(); };
-$('#selection-lookup').onclick = () => { void search(selectedText); closeTools(); };
+$('#selection-lookup').onclick = () => { void search(selectedText, { source: fileName, page: selectedRegions[0]?.pageIndex !== undefined ? selectedRegions[0].pageIndex + 1 : current, example: selectedText }); closeTools(); };
 for (const link of document.querySelectorAll<HTMLAnchorElement>('.ai-link')) {
   link.addEventListener('click', () => {
     const text = window.getSelection()?.toString().trim() || selectedText;
@@ -394,12 +410,20 @@ for (const link of document.querySelectorAll<HTMLAnchorElement>('.ai-link')) {
 $('#close-selection').onclick = closeTools;
 pages.addEventListener('pointerup', () => { clearTimeout(selectionTimer); selectionTimer = window.setTimeout(captureSelection, 30); });
 pages.addEventListener('keyup', captureSelection);
-pages.addEventListener('dblclick', () => { const word = window.getSelection()?.toString(); if (word) void search(word); });
+pages.addEventListener('dblclick', () => {
+  const selection = window.getSelection(); const word = selection?.toString().trim();
+  if (!word) return;
+  const layer = selection?.anchorNode?.parentElement?.closest('.textLayer');
+  const page = layer?.closest<HTMLElement>('.pdf-page');
+  const pageText = [...(layer?.querySelectorAll('span') || [])].map(span => span.textContent).join(' ');
+  const example = (pageText.match(/[^.!?]+[.!?]*/g) || []).find(sentence => sentence.toLowerCase().includes(word.toLowerCase()))?.trim().slice(0, 4000) || '';
+  void search(word, { source: fileName, page: page ? Number(page.dataset.index) + 1 : current, example });
+});
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeTools(); });
 document.addEventListener('pointerdown', event => { if (!tools.contains(event.target as Node) && !(event.target as HTMLElement).closest('.highlight')) closeTools(); });
 reader.addEventListener('scroll', () => {
   closeTools();
-  if (!pdf) return;
+  if (!pdf || !reader.clientWidth) return;
   const bounds = reader.getBoundingClientRect();
   const nearest = views.find(view => view.element.getBoundingClientRect().bottom > bounds.top + Math.min(160, bounds.height / 3));
   if (nearest && current !== nearest.index + 1) { current = nearest.index + 1; updatePageCounter(); }
@@ -454,7 +478,7 @@ reader.addEventListener('wheel', event => {
   wheelTimer = window.setTimeout(() => zoomTo(scale,pendingWheelAnchor), 100);
 }, {passive:false});
 document.addEventListener('keydown', event => {
-  if (!(event.ctrlKey || event.metaKey) || !pdf || noteDialog.open || passwordDialog.open) return;
+  if (!(event.ctrlKey || event.metaKey) || !pdf || noteDialog.open || passwordDialog.open || !reader.clientWidth || document.querySelector('dialog[open]')) return;
   const target = event.target as HTMLElement;
   if (target.closest('input,textarea,select,.dictionary') || target.isContentEditable) return;
   if (['+','=','-','0'].includes(event.key)) {
@@ -466,17 +490,18 @@ document.addEventListener('keydown', event => {
 let lastWidth = reader.clientWidth;
 let lastHeight = reader.clientHeight;
 new ResizeObserver(() => {
+  if (!reader.clientWidth || !reader.clientHeight) return;
   if (reader.clientWidth === lastWidth && reader.clientHeight === lastHeight) return;
   lastWidth = reader.clientWidth; lastHeight = reader.clientHeight;
   if (fitMode !== 'custom' && pdf) { clearTimeout(zoomTimer); zoomTimer = window.setTimeout(() => { const anchor = anchorAt(); void buildViews(anchor ? anchor.pageIndex + 1 : current, anchor); }, 150); }
 }).observe(reader);
-$('#open-button').onclick = $('#drop-open').onclick = () => fileInput.click();
+$('#open-button').onclick = $('#drop-open').onclick = () => { study.showReader(); fileInput.click(); };
 fileInput.onchange = () => { const file = fileInput.files?.[0]; if (file) void openFile(file); fileInput.value = ''; };
 let dragDepth = 0;
 document.addEventListener('dragenter', event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); dragDepth++; $('#drop-overlay').hidden = false; } });
 document.addEventListener('dragover', event => { if (event.dataTransfer?.types.includes('Files')) event.preventDefault(); });
 document.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('#drop-overlay').hidden = true; } });
-document.addEventListener('drop', event => { event.preventDefault(); dragDepth = 0; $('#drop-overlay').hidden = true; const file = event.dataTransfer?.files[0]; if (file) void openFile(file); });
+document.addEventListener('drop', event => { event.preventDefault(); dragDepth = 0; $('#drop-overlay').hidden = true; const file = event.dataTransfer?.files[0]; if (file && /\.pdf$/i.test(file.name)) { study.showReader(); void openFile(file); } });
 $('#export-button').onclick = async () => {
   if (!original) return;
   const button = $<HTMLButtonElement>('#export-button');

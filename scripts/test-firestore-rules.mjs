@@ -1,0 +1,30 @@
+import { readFile } from 'node:fs/promises';
+import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+import { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc } from 'firebase/firestore';
+const env = await initializeTestEnvironment({ projectId: 'demo-leaf-study', firestore: { rules: await readFile('firestore.rules', 'utf8'), host: '127.0.0.1', port: 8080 } });
+const entry = { id: 'entry-1', kind: 'word', text: 'retain', english: 'To keep.', korean: '유지하다', example: 'Retain information.', note: '', source: 'reading.pdf', page: 1, learned: false, createdAt: Date.now(), updatedAt: Date.now() };
+try {
+  const alice = env.authenticatedContext('alice').firestore();
+  const bob = env.authenticatedContext('bob').firestore();
+  const guest = env.unauthenticatedContext().firestore();
+  const ref = db => doc(db, 'users/alice/studyEntries/entry-1');
+  await assertFails(setDoc(ref(guest), entry));
+  await assertSucceeds(setDoc(ref(alice), entry));
+  await assertSucceeds(getDoc(ref(alice)));
+  await assertSucceeds(getDocs(collection(alice, 'users/alice/studyEntries')));
+  await assertFails(getDoc(ref(bob)));
+  await assertFails(getDocs(collection(bob, 'users/alice/studyEntries')));
+  await assertFails(getDoc(ref(guest)));
+  await assertFails(updateDoc(ref(bob), { korean: 'attack' }));
+  await assertFails(deleteDoc(ref(bob)));
+  await assertFails(updateDoc(ref(alice), { id: 'spoofed' }));
+  await assertFails(updateDoc(ref(alice), { text: 'x'.repeat(4001) }));
+  await assertFails(updateDoc(ref(alice), { page: -1 }));
+  await assertFails(updateDoc(ref(alice), { learned: 'yes' }));
+  await assertFails(updateDoc(ref(alice), { unexpected: 'data' }));
+  await assertFails(updateDoc(ref(alice), { kind: 'sentence' }));
+  await assertSucceeds(updateDoc(ref(alice), { korean: '기억하다', learned: true }));
+  await assertSucceeds(deleteDoc(ref(alice)));
+  await assertFails(updateDoc(ref(alice), { korean: 'do not resurrect' }));
+  console.log('PASS: owner CRUD, cross-account isolation, anonymous denial, schema validation and stale-edit deletion.');
+} finally { await env.cleanup(); }

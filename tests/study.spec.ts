@@ -1,0 +1,84 @@
+import { test, expect } from '@playwright/test';
+import path from 'node:path';
+import { readFile } from 'node:fs/promises';
+
+test.beforeEach(async ({ page }) => {
+  await page.route('**/firebase-config.json', route => route.fulfill({ json: null }));
+  await page.route('https://api.dictionaryapi.dev/**', route => route.fulfill({ json: [{ word: 'retain', meanings: [{ partOfSpeech: 'verb', definitions: [{ definition: 'To keep something.', example: 'Reading helps us retain words.' }] }] }] }));
+  await page.route('https://translate.googleapis.com/**', route => route.fulfill({ json: [[['기억하다', 'retain']]] }));
+  await page.goto('/');
+  await expect(page.locator('#study-sync')).toContainText('이 기기에 저장');
+});
+
+test('dictionary draft, CRUD, review, persistence, separate sentence tab and safe rendering', async ({ page }) => {
+  await page.locator('#word-input').fill('retain'); await page.locator('#word-input').press('Enter');
+  await expect(page.locator('#english-result')).toContainText('To keep something.');
+  await expect(page.locator('#korean-result')).toContainText('기억하다');
+  await page.locator('#dictionary-save').click();
+  await expect(page.locator('#study-text')).toHaveValue('retain');
+  await expect(page.locator('#study-english')).toHaveValue('To keep something.');
+  await expect(page.locator('#study-korean')).toHaveValue('기억하다');
+  await expect(page.locator('#study-example')).toHaveValue('Reading helps us retain words.');
+  await page.locator('#study-submit').click();
+  await page.getByRole('tab', { name: '나의 단어장' }).click();
+  const card = page.locator('.study-card'); await expect(card).toHaveCount(1);
+  await page.locator('#study-hide').check(); await expect(card.locator('.study-korean')).not.toBeVisible();
+  await card.getByText('뜻·번역 확인', { exact: true }).click(); await expect(card.locator('.study-korean')).toBeVisible();
+  await card.getByRole('button', { name: '외웠어요', exact: true }).click(); await expect(card.locator('.study-learned')).toBeVisible();
+  await card.getByRole('button', { name: '수정' }).click(); await page.locator('#study-korean').fill('유지하다, 기억하다'); await page.locator('#study-submit').click();
+  await page.reload(); await page.getByRole('tab', { name: '나의 단어장' }).click();
+  await expect(card).toContainText('유지하다, 기억하다'); await expect(card.locator('.study-learned')).toBeVisible();
+  await page.locator('#study-search').fill('없는단어'); await expect(card).toHaveCount(0);
+  await page.locator('#study-search').fill('');
+  await page.getByRole('tab', { name: '나의 문장' }).click(); await expect(card).toHaveCount(0);
+  await page.locator('#study-add').click(); await expect(page.locator('#study-word-fields')).toBeHidden();
+  await page.locator('#study-text').fill('Keep <img src=x onerror=alert(1)> learning.');
+  await page.locator('#study-korean').fill('계속 배워요.'); await page.locator('#study-submit').click();
+  await expect(card).toContainText('Keep <img src=x onerror=alert(1)> learning.'); await expect(card.locator('img')).toHaveCount(0);
+  await card.getByRole('button', { name: '삭제' }).click(); await page.locator('#study-delete-dialog button[value=cancel]').click(); await expect(card).toHaveCount(1);
+  await card.getByRole('button', { name: '삭제' }).click(); await page.locator('#study-delete-dialog button[value=delete]').click(); await expect(card).toHaveCount(0);
+  await page.getByRole('tab', { name: '나의 단어장' }).click(); await expect(card).toHaveCount(1);
+  await page.screenshot({ path: 'test-results/study-desktop.png', fullPage: true });
+});
+
+test('backup round trip, duplicate import and invalid file rejection', async ({ page }) => {
+  await page.getByRole('tab', { name: '나의 단어장' }).click(); await page.locator('#study-add').click();
+  await page.locator('#study-text').fill('curiosity'); await page.locator('#study-korean').fill('호기심'); await page.locator('#study-submit').click();
+  const downloadEvent = page.waitForEvent('download'); await page.locator('#study-export').click(); const download = await downloadEvent;
+  const backup = await readFile((await download.path())!); expect(JSON.parse(backup.toString()).entries).toHaveLength(1);
+  await page.locator('#study-import').click(); await page.locator('#study-import-file').setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: backup });
+  await expect(page.locator('#toast')).toContainText('0개를 가져왔어요'); await expect(page.locator('.study-card')).toHaveCount(1);
+  await page.locator('.study-card').getByRole('button', { name: '삭제' }).click(); await page.locator('#study-delete-dialog button[value=delete]').click(); await expect(page.locator('.study-card')).toHaveCount(0);
+  await page.locator('#study-import').click(); await page.locator('#study-import-file').setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: backup });
+  await expect(page.locator('.study-card')).toContainText('호기심');
+  await page.locator('#study-import').click(); await page.locator('#study-import-file').setInputFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{"entries":[]}') });
+  await expect(page.locator('#study-error')).toContainText('백업 파일'); await expect(page.locator('.study-card')).toHaveCount(1);
+});
+
+test('PDF selection saving, tab return preserves zoom and ring replaces system cursor including dialogs', async ({ page }) => {
+  await page.locator('#file-input').setInputFiles(path.resolve('tests/fixtures/reading.pdf'));
+  await expect(page.locator('.pdf-page[data-index="0"][data-ready="true"] .textLayer span').first()).toBeVisible();
+  await page.locator('#zoom-label').selectOption('125');
+  await expect(page.locator('.pdf-page[data-index="0"][data-ready="true"] .textLayer span').first()).toBeVisible();
+  await page.evaluate(() => {
+    const span = [...document.querySelectorAll('.pdf-page[data-index="0"] .textLayer span')].find(el => el.textContent?.includes('Hello world'))!;
+    const range = document.createRange(); range.selectNodeContents(span);
+    const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+    document.querySelector('#pages')!.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+  });
+  await page.locator('#selection-save').click();
+  await expect(page.locator('#study-text')).toHaveValue(/Hello world/);
+  await expect(page.locator('#study-source')).toHaveValue('reading.pdf'); await expect(page.locator('#study-page')).toHaveValue('1');
+  await page.locator('#study-text').hover();
+  await expect(page.locator('#study-text')).toHaveCSS('cursor', 'none');
+  await expect(page.locator('#study-editor #leaf-cursor')).toHaveCSS('opacity', '1');
+  await page.locator('#study-submit').click(); await page.getByRole('tab', { name: '나의 문장' }).click(); await expect(page.locator('.study-card')).toContainText('Hello world');
+  await page.getByRole('tab', { name: 'PDF 읽기' }).click(); await expect(page.locator('#zoom-label')).toHaveValue('125');
+  await expect(page.locator('#file-name')).toHaveText('reading.pdf');
+  await page.locator('#open-button').hover(); await expect(page.locator('#open-button')).toHaveCSS('cursor', 'none'); await expect(page.locator('body > #leaf-cursor')).toHaveCSS('opacity', '1');
+  await page.getByRole('tab', { name: '나의 문장' }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('#study-add')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/study-mobile.png', fullPage: true });
+});

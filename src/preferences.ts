@@ -11,6 +11,7 @@ export function setupReadingPreferences() {
   function store(key: string, value: number) { try { localStorage.setItem(key, String(value)); } catch {} }
   function limits() { return { min: 280, max: Math.max(280, Math.min(720, workspace.clientWidth - 340)) }; }
   function resize(width: number, remember = false) {
+    if (!workspace.clientWidth) return;
     const { min, max } = limits();
     const value = Math.max(min, Math.min(max, width));
     workspace.style.setProperty('--dictionary-width', value + 'px');
@@ -56,11 +57,18 @@ export function setupReadingPreferences() {
   cursor.id = 'leaf-cursor';
   cursor.setAttribute('aria-hidden', 'true');
   document.body.append(cursor);
+  const hideCursor = () => { cursor.classList.remove('visible', 'active'); document.documentElement.classList.remove('leaf-pointer-active'); };
   document.addEventListener('pointermove', event => {
-    if (event.pointerType === 'touch') return;
-    cursor.style.setProperty('--cx', event.clientX + 'px');
-    cursor.style.setProperty('--cy', event.clientY + 'px');
+    if (event.pointerType !== 'mouse' || !matchMedia('(any-pointer: fine)').matches) { hideCursor(); return; }
+    // A modal dialog is in the browser's top layer; keep the single ring in that layer too.
+    const modal = document.querySelector<HTMLElement>('dialog[open]');
+    const parent = modal || document.body;
+    if (cursor.parentElement !== parent) parent.append(cursor);
+    const bounds = modal?.getBoundingClientRect();
+    cursor.style.setProperty('--cx', event.clientX - (bounds?.left || 0) + (modal?.scrollLeft || 0) + 'px');
+    cursor.style.setProperty('--cy', event.clientY - (bounds?.top || 0) + (modal?.scrollTop || 0) + 'px');
     cursor.classList.add('visible');
+    document.documentElement.classList.add('leaf-pointer-active');
   }, { passive: true });
   document.addEventListener('pointerdown', event => {
     if (event.pointerType === 'touch') return;
@@ -69,5 +77,8 @@ export function setupReadingPreferences() {
   const release = () => cursor.classList.remove('active');
   document.addEventListener('pointerup', release, { passive: true });
   document.addEventListener('pointercancel', release, { passive: true });
-  document.addEventListener('mouseleave', () => cursor.classList.remove('visible', 'active'));
+  document.addEventListener('mouseleave', hideCursor);
+  window.addEventListener('blur', hideCursor);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) hideCursor(); });
+  document.addEventListener('close', hideCursor, true);
 }
