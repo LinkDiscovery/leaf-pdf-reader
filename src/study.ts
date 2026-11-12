@@ -2,13 +2,14 @@ import layout from './study.html?raw';
 import { emptyDraft, readBackup, validEntry, type StudyDraft, type StudyEntry, type StudyKind } from './study-model';
 import { localEntries, writeLocal } from './study-local';
 import type { CloudState, StudyCloud } from './study-cloud';
+import type { WordAudio } from './word-audio';
 import './study.css';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className = '') {
   const element = document.createElement(tag); element.textContent = text; element.className = className; return element;
 }
-export function setupStudy(notify: (message: string) => void) {
+export function setupStudy(notify: (message: string) => void, audio: WordAudio) {
   const fragment = document.createElement('template'); fragment.innerHTML = layout;
   document.querySelector('.topbar')!.after(fragment.content);
   const workspace = document.querySelector<HTMLElement>('.workspace')!;
@@ -65,11 +66,12 @@ export function setupStudy(notify: (message: string) => void) {
     $('study-empty').querySelector('h2')!.textContent = query || filter !== 'all' ? '조건에 맞는 기록이 없어요' : '아직 모아 둔 기록이 없어요';
     $('study-more').hidden = visible.length <= limit;
     const conceal = $<HTMLInputElement>('study-hide').checked;
-    const list = $('study-list'); list.replaceChildren();
+    const list = $('study-list'); audio.stopWithin(list); list.replaceChildren();
     for (const entry of visible.slice(0, limit)) {
       const card = node('article', '', 'study-card'); card.dataset.id = entry.id;
       const heading = node('div', '', 'study-card-heading');
       heading.append(node('h2', entry.text));
+      if (entry.kind === 'word') heading.append(audio.createButton(entry.text));
       if (entry.learned) heading.append(node('span', '외웠어요', 'study-learned'));
       card.append(heading);
       const answer = node('div', '', 'study-answer');
@@ -89,6 +91,7 @@ export function setupStudy(notify: (message: string) => void) {
     }
   }
   function switchView(next: typeof view) {
+    audio.stop();
     if (view === 'reader' && next !== 'reader') scrollTop = $('reader-scroll').scrollTop;
     view = next; limit = 40;
     document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach(tab => {

@@ -50,6 +50,12 @@ dialog p { font-size: 1rem; line-height: 1.7; color: #53654d; }
 .study-heading h1 { font-size: 2rem; }
 .study-heading p { font-size: 1rem; line-height: 1.6; }
 .study-card h2 { font-size: 1.5rem; }
+.study-card-heading { flex-wrap: wrap; }
+.study-card-heading h2 { flex: 1; min-width: 120px; }
+.word-audio { flex-shrink: 0; min-height: 38px; border: 1px solid #cbdac5; border-radius: 8px; background: #f5f9f1; white-space: nowrap; }
+.word-audio[aria-pressed=true] { background: #dfedda; border-color: #65855c; }
+.dictionary-word-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 22px 0 16px; }
+.dictionary-word-heading #word-title { flex: 1; min-width: 100px; margin: 0; }
 #study-panel[aria-labelledby=tab-sentences] .study-card h2 { font-size: 1.25rem; }
 .study-korean { font-size: 1.25rem; }
 .study-english, .study-example, .study-note { font-size: 1.0625rem; }

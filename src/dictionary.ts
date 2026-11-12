@@ -1,4 +1,5 @@
 import { emptyDraft, type StudyDraft } from './study-model';
+import type { WordAudio } from './word-audio';
 type ReadingSource = { source: string; page: number; example: string };
 let studyDraft: StudyDraft = emptyDraft('word');
 export function dictionaryStudyDraft(): StudyDraft { return { ...studyDraft }; }
@@ -92,10 +93,13 @@ function parseOnlineKorean(raw: unknown, queryWord: string): OnlineKoreanResult 
   if (!primary && !groups.length) return null;
   return { primary, groups };
 }
-export function setupDictionary() {
+export function setupDictionary(audio: WordAudio) {
   const form = document.querySelector<HTMLFormElement>('#dictionary-form')!;
   const input = document.querySelector<HTMLInputElement>('#word-input')!;
   const title = document.querySelector<HTMLElement>('#word-title')!;
+  const wordHeading = document.createElement('div'); wordHeading.className = 'dictionary-word-heading';
+  title.before(wordHeading); wordHeading.append(title);
+  const audioSlot = document.createElement('span'); audioSlot.id = 'dictionary-audio'; wordHeading.append(audioSlot);
   const en = document.querySelector<HTMLElement>('#english-result')!;
   const ko = document.querySelector<HTMLElement>('#korean-result')!;
   const koBadge = document.querySelector<HTMLElement>('#korean-badge');
@@ -208,6 +212,9 @@ export function setupDictionary() {
       input.setCustomValidity('영어 단어 또는 짧은 구문을 입력하세요.'); input.reportValidity(); return;
     }
     input.setCustomValidity('');
+    audio.stop();
+    audioSlot.replaceChildren();
+    if (isWordQuery) audioSlot.append(audio.createButton(word));
     const query = isWordQuery ? word : cleanedSentence;
     const token = ++sequence;
     studyDraft = { ...emptyDraft(isWordQuery ? 'word' : 'sentence'), text: query, source: source?.source || '', page: source?.page || 0, example: isWordQuery ? source?.example || '' : '' };
