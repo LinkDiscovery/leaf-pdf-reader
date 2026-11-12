@@ -53,32 +53,32 @@ export function setupReadingPreferences() {
   new ResizeObserver(() => resize(preferredWidth)).observe(workspace);
   resize(preferredWidth); applyFont();
 
-  const cursor = document.createElement('div');
-  cursor.id = 'leaf-cursor';
-  cursor.setAttribute('aria-hidden', 'true');
-  document.body.append(cursor);
-  const hideCursor = () => { cursor.classList.remove('visible', 'active'); document.documentElement.classList.remove('leaf-pointer-active'); };
-  document.addEventListener('pointermove', event => {
-    if (event.pointerType !== 'mouse' || !matchMedia('(any-pointer: fine)').matches) { hideCursor(); return; }
-    // A modal dialog is in the browser's top layer; keep the single ring in that layer too.
-    const modal = document.querySelector<HTMLElement>('dialog[open]');
-    const parent = modal || document.body;
-    if (cursor.parentElement !== parent) parent.append(cursor);
-    const bounds = modal?.getBoundingClientRect();
-    cursor.style.setProperty('--cx', event.clientX - (bounds?.left || 0) + (modal?.scrollLeft || 0) + 'px');
-    cursor.style.setProperty('--cy', event.clientY - (bounds?.top || 0) + (modal?.scrollTop || 0) + 'px');
-    cursor.classList.add('visible');
-    document.documentElement.classList.add('leaf-pointer-active');
-  }, { passive: true });
+  const clickEffect = document.querySelector<HTMLInputElement>('#click-effect-toggle')!;
+  try { clickEffect.checked = localStorage.getItem('leaf-click-effect') !== 'off'; } catch {}
+  let ring: HTMLDivElement | undefined;
+  let ringTimer = 0;
+  const clearRing = () => { clearTimeout(ringTimer); ring?.remove(); ring = undefined; };
+  clickEffect.onchange = () => {
+    clearRing();
+    try { localStorage.setItem('leaf-click-effect', clickEffect.checked ? 'on' : 'off'); } catch {}
+  };
+  // Leave movement, cursor shape and speed entirely to the OS/browser.
   document.addEventListener('pointerdown', event => {
-    if (event.pointerType === 'touch') return;
-    cursor.classList.add('active');
+    if (!clickEffect.checked || event.pointerType !== 'mouse' || event.button !== 0
+      || (event.target as Element).closest('.click-effect-option')) return;
+    clearRing();
+    ring = document.createElement('div');
+    ring.id = 'leaf-click-effect'; ring.setAttribute('aria-hidden', 'true');
+    const modal = document.querySelector<HTMLElement>('dialog[open]');
+    const bounds = modal?.getBoundingClientRect();
+    ring.style.left = event.clientX - (bounds?.left || 0) - (modal?.clientLeft || 0) + (modal?.scrollLeft || 0) + 'px';
+    ring.style.top = event.clientY - (bounds?.top || 0) - (modal?.clientTop || 0) + (modal?.scrollTop || 0) + 'px';
+    (modal || document.body).append(ring);
+    ringTimer = window.setTimeout(clearRing, 400);
   }, { passive: true });
-  const release = () => cursor.classList.remove('active');
-  document.addEventListener('pointerup', release, { passive: true });
-  document.addEventListener('pointercancel', release, { passive: true });
-  document.addEventListener('mouseleave', hideCursor);
-  window.addEventListener('blur', hideCursor);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) hideCursor(); });
-  document.addEventListener('close', hideCursor, true);
+  document.addEventListener('pointercancel', clearRing, { passive: true });
+  document.addEventListener('mouseleave', clearRing);
+  window.addEventListener('blur', clearRing);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearRing(); });
+  document.addEventListener('close', clearRing, true);
 }

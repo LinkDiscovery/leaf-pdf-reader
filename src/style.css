@@ -1560,41 +1560,31 @@ dialog form>div {
     color: #4285f4
 }
 
-#leaf-cursor {
+.click-effect-option { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.click-effect-option input { accent-color: var(--green); }
+#leaf-click-effect {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    background: rgba(36, 76, 63, .26);
-    border: 2px solid #244c3f;
+    background: rgba(36, 76, 63, .08);
+    border: 2px solid rgba(36, 76, 63, .5);
     pointer-events: none;
     z-index: 99999;
-    opacity: 0;
-    transform: translate3d(var(--cx, -40px), var(--cy, -40px), 0) translate(-50%, -50%) scale(1);
-    transition: background .12s ease, opacity .15s ease;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, .18)
+    transform: translate(-50%, -50%);
+    animation: leaf-click-fade 350ms ease-out forwards;
 }
-
-#leaf-cursor.visible {
-    opacity: 1
+dialog #leaf-click-effect { position: absolute; }
+@keyframes leaf-click-fade {
+    from { opacity: .8; transform: translate(-50%, -50%) scale(.7); }
+    to { opacity: 0; transform: translate(-50%, -50%) scale(1.25); }
 }
-
-#leaf-cursor.active {
-    transform: translate3d(var(--cx, -40px), var(--cy, -40px), 0) translate(-50%, -50%) scale(.76);
-    background: rgba(245, 207, 76, .72);
-    border-color: #b88d19
+@media(prefers-reduced-motion: reduce) {
+    #leaf-click-effect { animation: leaf-click-still 200ms linear forwards; }
 }
-
-@media(any-pointer:fine) {
-    html.leaf-pointer-active, html.leaf-pointer-active * { cursor: none !important; }
-}
-dialog #leaf-cursor { position: absolute; }
-@media(any-pointer:none) {
-    #leaf-cursor {
-        display: none
-    }
+@keyframes leaf-click-still {
+    from { opacity: .6; }
+    to { opacity: 0; }
 }
 
 @media(max-width:1150px) {

@@ -26,6 +26,7 @@ test('dictionary draft, CRUD, review, persistence, separate sentence tab and saf
   await card.getByText('뜻·번역 확인', { exact: true }).click(); await expect(card.locator('.study-korean')).toBeVisible();
   await card.getByRole('button', { name: '외웠어요', exact: true }).click(); await expect(card.locator('.study-learned')).toBeVisible();
   await card.getByRole('button', { name: '수정' }).click(); await page.locator('#study-korean').fill('유지하다, 기억하다'); await page.locator('#study-submit').click();
+  await expect(page.locator('#study-editor')).toBeHidden();
   await page.reload(); await page.getByRole('tab', { name: '나의 단어장' }).click();
   await expect(card).toContainText('유지하다, 기억하다'); await expect(card.locator('.study-learned')).toBeVisible();
   await page.locator('#study-search').fill('없는단어'); await expect(card).toHaveCount(0);
@@ -55,7 +56,7 @@ test('backup round trip, duplicate import and invalid file rejection', async ({ 
   await expect(page.locator('#study-error')).toContainText('백업 파일'); await expect(page.locator('.study-card')).toHaveCount(1);
 });
 
-test('PDF selection saving, tab return preserves zoom and ring replaces system cursor including dialogs', async ({ page }) => {
+test('PDF selection saving, tab return preserves zoom and native cursor with optional click effect', async ({ page }) => {
   await page.locator('#file-input').setInputFiles(path.resolve('tests/fixtures/reading.pdf'));
   await expect(page.locator('.pdf-page[data-index="0"][data-ready="true"] .textLayer span').first()).toBeVisible();
   await page.locator('#zoom-label').selectOption('125');
@@ -70,15 +71,23 @@ test('PDF selection saving, tab return preserves zoom and ring replaces system c
   await expect(page.locator('#study-text')).toHaveValue(/Hello world/);
   await expect(page.locator('#study-source')).toHaveValue('reading.pdf'); await expect(page.locator('#study-page')).toHaveValue('1');
   await page.locator('#study-text').hover();
-  await expect(page.locator('#study-text')).toHaveCSS('cursor', 'none');
-  await expect(page.locator('#study-editor #leaf-cursor')).toHaveCSS('opacity', '1');
+  await expect(page.locator('#study-text')).not.toHaveCSS('cursor', 'none');
+  await expect(page.locator('#leaf-cursor')).toHaveCount(0);
+  await page.mouse.down();
+  await expect(page.locator('#study-editor #leaf-click-effect')).toHaveCount(1);
+  await page.mouse.up();
+  await expect(page.locator('#leaf-click-effect')).toHaveCount(0);
   await page.locator('#study-submit').click(); await page.getByRole('tab', { name: '나의 문장' }).click(); await expect(page.locator('.study-card')).toContainText('Hello world');
   await page.getByRole('tab', { name: 'PDF 읽기' }).click(); await expect(page.locator('#zoom-label')).toHaveValue('125');
   await expect(page.locator('#file-name')).toHaveText('reading.pdf');
-  await page.locator('#open-button').hover(); await expect(page.locator('#open-button')).toHaveCSS('cursor', 'none'); await expect(page.locator('body > #leaf-cursor')).toHaveCSS('opacity', '1');
+  await page.locator('#open-button').hover(); await expect(page.locator('#open-button')).toHaveCSS('cursor', 'pointer');
+  await page.locator('#click-effect-toggle').uncheck();
+  await page.getByRole('tab', { name: '나의 문장' }).click();
+  await expect(page.locator('#leaf-click-effect')).toHaveCount(0);
   await page.getByRole('tab', { name: '나의 문장' }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator('#study-add')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/study-mobile.png', fullPage: true });
+  await page.reload(); await expect(page.locator('#click-effect-toggle')).not.toBeChecked();
 });
