@@ -9,13 +9,17 @@ test.beforeEach(async ({ page }) => {
 
 async function mockAudio(page: import('@playwright/test').Page) {
   await page.addInitScript(() => {
-    const state = { calls: [] as any[], canceled: 0, voices: [{ name: 'Korean', lang: 'ko-KR', localService: true }, { name: 'English', lang: 'en-US', localService: true }] };
+    const state = { calls: [] as any[], recordings: [] as any[], canceled: 0, paused: 0, voices: [{ name: 'Korean', lang: 'ko-KR', localService: true }, { name: 'English', lang: 'en-US', localService: true }] };
     (window as any).__audio = state;
     Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: class { constructor(public text: string) {} } });
     Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: {
       getVoices: () => state.voices,
       speak: (utterance: any) => state.calls.push(utterance),
       cancel: () => { state.canceled++; state.calls.at(-1)?.onerror?.({ error: 'canceled' }); },
+    } });
+    Object.defineProperty(window, 'Audio', { configurable: true, value: class {
+      constructor(public src: string) { state.recordings.push(this); }
+      async play() {} pause() { state.paused++; }
     } });
   });
 }
@@ -64,18 +68,30 @@ test('word cards pronounce only their word, stop on switch or filtering, and sen
   await expect(page.locator('.study-card')).toHaveCount(1); await expect(page.locator('.study-card .word-audio')).toHaveCount(0);
 });
 
-test('voice errors recover and missing speech support leaves a disabled explanation', async ({ page }) => {
+test('voice errors recover and unavailable English voices use cancelable dictionary recordings', async ({ page }) => {
   await mockAudio(page); await page.goto('/');
   await page.locator('#word-input').fill('hello'); await page.locator('#word-input').press('Enter');
   const listen = page.locator('#dictionary-audio button'); await listen.click();
   await page.evaluate(() => (window as any).__audio.calls.at(-1).onerror({ error: 'voice-unavailable' }));
-  await expect(listen).toHaveAttribute('aria-pressed', 'false'); await expect(page.locator('#toast')).toContainText('재생하지 못했어요');
+  await expect.poll(() => page.evaluate(() => (window as any).__audio.recordings.length)).toBe(1);
+  await page.evaluate(() => (window as any).__audio.recordings[0].onerror());
+  await expect.poll(() => page.evaluate(() => (window as any).__audio.recordings.length)).toBe(2);
+  await page.evaluate(() => (window as any).__audio.recordings[1].onended());
+  await expect(listen).toHaveAttribute('aria-pressed', 'false');
   await page.evaluate(() => (window as any).__audio.voices = []); await listen.click();
-  expect(await page.evaluate(() => (window as any).__audio.calls.at(-1).lang)).toBe('en-US');
-  await listen.click();
-  await page.evaluate(() => (window as any).__audio.voices = [{ lang: 'ko-KR', localService: true }]); await listen.click();
-  await expect(page.locator('#toast')).toContainText('영어 음성을 찾지 못했어요');
-  await page.addInitScript(() => { delete (window as any).speechSynthesis; delete (window as any).SpeechSynthesisUtterance; });
-  await page.reload(); await page.locator('#word-input').fill('hello'); await page.locator('#word-input').press('Enter');
-  await expect(listen).toBeDisabled(); await expect(listen).toHaveText('음성 미지원');
+  await expect.poll(() => page.evaluate(() => (window as any).__audio.recordings.length)).toBe(3);
+  await expect(listen).toHaveAttribute('aria-pressed', 'true');
+  await listen.click(); expect(await page.evaluate(() => (window as any).__audio.paused)).toBeGreaterThan(0);
+  await listen.click(); await expect.poll(() => page.evaluate(() => (window as any).__audio.recordings.length)).toBe(4);
+  await page.evaluate(() => (window as any).__audio.recordings[2].onended());
+  await expect(listen).toHaveAttribute('aria-pressed', 'true');
+  await page.evaluate(() => (window as any).__audio.recordings[3].onended());
+  await expect(listen).toHaveAttribute('aria-pressed', 'false');
+  // A stopped network lookup must not start audio later.
+  await page.route('https://api.dictionaryapi.dev/**', async route => { await new Promise(resolve => setTimeout(resolve, 200)); await route.fulfill({ json: [{ phonetics: [{ audio: 'https://api.dictionaryapi.dev/media/pronunciations/en/book.mp3' }] }] }); });
+  await page.locator('#word-input').fill('book'); await page.locator('#word-input').press('Enter');
+  await listen.click(); await listen.click();
+  await expect(page.locator('#word-title')).toHaveText('book');
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => (window as any).__audio.recordings.length)).toBe(4);
 });
