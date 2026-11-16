@@ -19,7 +19,7 @@ test('sentence patterns sync as notes using the existing Firestore schema', asyn
     await first.locator('#study-add').click();
     await first.locator('#study-text').fill('It remains difficult for students to understand the theory.');
     await first.locator('#study-note').fill('기존 메모');
-    await first.locator('#sentence-pattern summary').click();
+    await first.locator('#sentence-pattern > summary').click();
     await first.locator('#pattern-value').fill('It remains + 형용사 + for A + to B');
     await first.locator('#pattern-meaning').fill('A가 B하는 것은 여전히 ~하다.');
     await first.locator('#pattern-apply').click(); await first.locator('#study-submit').click();

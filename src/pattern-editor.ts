@@ -1,5 +1,5 @@
 import { parsePattern, patternNote } from './sentence-pattern';
-import type { createPatternClient } from './pattern-client';
+import { createPatternClient, checkPatternServer, defaultPatternServer, patternServer } from './pattern-client';
 
 export function setupPatternEditor() {
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -8,26 +8,45 @@ export function setupPatternEditor() {
   const pattern = $<HTMLInputElement>('pattern-value'), meaning = $<HTMLInputElement>('pattern-meaning');
   const run = $<HTMLButtonElement>('pattern-run'), cancel = $('pattern-cancel'), status = $('pattern-status');
   const apply = $<HTMLButtonElement>('pattern-apply');
+  const endpoint = $<HTMLInputElement>('pattern-server'), check = $<HTMLButtonElement>('pattern-check');
+  try { endpoint.value = localStorage.getItem('leaf-pattern-server') || defaultPatternServer; } catch { endpoint.value = defaultPatternServer; }
+  let checking: AbortController | undefined;
+  function serverAddress() {
+    const base = patternServer(endpoint.value.trim());
+    try { localStorage.setItem('leaf-pattern-server', base); } catch { /* Connection still works without persistence. */ }
+    return base;
+  }
   let client: ReturnType<typeof createPatternClient> | undefined;
   let revision = 0, busy = false, resultSentence = '';
   function setBusy(value: boolean) {
-    busy = value; run.disabled = value; cancel.hidden = !value; apply.disabled = value;
+    busy = value; run.disabled = value; cancel.hidden = !value; apply.disabled = value; check.disabled = value;
     panel.setAttribute('aria-busy', String(value));
   }
-  function stop() { revision++; client?.cancel(); setBusy(false); }
+  function stop() { revision++; client?.cancel(); checking?.abort(); checking = undefined; setBusy(false); }
+  endpoint.oninput = () => { stop(); status.textContent = '연결 주소가 바뀌었어요. 연결을 확인한 뒤 분석해 주세요.'; };
+  check.onclick = async () => {
+    stop(); const token = revision; checking = new AbortController(); check.disabled = true;
+    status.textContent = 'Ollama 연결을 확인합니다…';
+    try {
+      const info = await checkPatternServer(serverAddress(), AbortSignal.any([checking.signal, AbortSignal.timeout(6000)]));
+      if (token === revision) status.textContent = `${info.model} 연결됨 · ${info.cpu ? 'CPU 모드' : '자동 모드'} · 분석 시작을 누르세요.`;
+    } catch (error) {
+      if (token === revision) status.textContent = error instanceof Error && /[가-힣]/.test(error.message) ? error.message : 'Ollama와 연결 프로그램을 실행해 주세요. 로컬 네트워크 접근 요청이 나오면 허용해 주세요.';
+    } finally { if (token === revision) { checking = undefined; check.disabled = false; } }
+  };
   cancel.onclick = () => { stop(); status.textContent = '분석을 취소했어요. 입력한 내용은 그대로 남아 있어요.'; };
   run.onclick = async () => {
     const sentence = input.value.trim();
     if (!/[a-z]/i.test(sentence) || sentence.length > 1200) { status.textContent = '1,200자 이내의 영어 문장을 먼저 입력해 주세요.'; return; }
-    const token = ++revision; setBusy(true); status.textContent = '분석 모델을 준비합니다. 처음에는 다운로드에 시간이 걸릴 수 있어요.';
+    checking?.abort(); checking = undefined;
+    const token = ++revision; setBusy(true); status.textContent = 'Ollama 연결을 확인합니다…';
     try {
-      const { createPatternClient } = await import('./pattern-client');
       if (token !== revision) return;
       client ??= createPatternClient();
-      const result = await client.analyze(sentence, (stage, progress) => {
+      const result = await client.analyze(sentence, stage => {
         if (token !== revision) return;
-        status.textContent = stage === 'analyzing' ? '이 기기에서 문장 패턴을 분석하고 있어요…' : `모델 준비 중 ${Math.round(Math.max(0, Math.min(1, progress || 0)) * 100)}% · 처음에는 약 2.3GB를 내려받습니다.`;
-      });
+        status.textContent = stage === 'analyzing' ? '연결된 Ollama에서 문장 패턴을 분석하고 있어요… CPU에서는 시간이 걸릴 수 있어요.' : 'Ollama 연결을 확인합니다…';
+      }, serverAddress());
       if (token !== revision) return;
       if (input.value.trim() !== sentence) { status.textContent = '분석 중 원문이 바뀌어 결과를 적용하지 않았어요. 새 문장으로 다시 분석해 주세요.'; return; }
       const value = parsePattern(JSON.stringify(result));

@@ -27,9 +27,10 @@
     <div id="study-word-fields"><label for="study-english">영어 뜻</label><textarea id="study-english" maxlength="4000" rows="2"></textarea><label for="study-example">예시문장</label><textarea id="study-example" maxlength="4000" rows="2"></textarea></div>
     <label for="study-korean" id="study-korean-label">한국어 뜻</label><textarea id="study-korean" maxlength="4000" rows="2"></textarea>
     <details id="sentence-pattern" hidden>
-      <summary>문장 패턴 분석 <span>개발용 실험 · 배포 보류</span></summary>
+      <summary>문장 패턴 분석 <span>Ollama · 시험용</span></summary>
       <p><strong>정확도 검사에서 문법 오류가 확인된 실험 기능입니다.</strong> 자동 분석 결과를 학습용 정답으로 사용하지 마세요. 패턴을 직접 입력해 저장하는 흐름을 시험할 수 있습니다.</p>
-      <p>핵심 패턴과 뜻의 <strong>AI 초안</strong>을 한 줄씩 제안합니다. 처음 시작할 때 모델 약 2.3GB를 내려받으며, 이후에는 이 브라우저에 저장된 모델을 재사용합니다. GPU를 지원하는 PC의 Chrome·Edge에서 사용해 주세요. 문장은 분석 서버로 보내지 않습니다.</p>
+      <p>선택한 문장만 연결된 Ollama로 보내 분석합니다. PDF는 보내지 않습니다. 아래 기본 주소는 이 PC에서 실행되는 연결 프로그램입니다. 결과는 확인·수정한 뒤 저장하세요.</p>
+      <details><summary>Ollama 연결 설정</summary><label for="pattern-server">분석 연결 주소</label><input id="pattern-server" type="text" inputmode="url" spellcheck="false" placeholder="http://127.0.0.1:4175"><button id="pattern-check" type="button" class="button secondary">연결 확인</button><p>Ollama를 실행한 뒤 저장소의 Ollama-Analysis.cmd를 열어 주세요. 모델은 브라우저에서 다운로드하지 않습니다. 사용 방법은 README의 Ollama 안내를 참고하세요.</p></details>
       <div class="pattern-actions"><button id="pattern-run" type="button" class="button secondary">분석 시작</button><button id="pattern-cancel" type="button" class="text-button" hidden>분석 취소</button></div>
       <p id="pattern-status" role="status" aria-live="polite"></p>
       <label for="pattern-value">핵심 패턴</label><input id="pattern-value" maxlength="250" placeholder="It remains + 형용사 + for A + to B">

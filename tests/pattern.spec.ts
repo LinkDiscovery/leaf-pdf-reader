@@ -19,7 +19,7 @@ async function openSentence(page: Page) {
   await page.getByRole('tab', { name: '나의 문장' }).click();
   await page.locator('#study-add').click();
   await page.locator('#study-text').fill('It remains difficult for students to understand the theory.');
-  await page.locator('#sentence-pattern summary').click();
+  await page.locator('#sentence-pattern > summary').click();
 }
 
 test('manual patterns require explicit save, preserve notes and survive backup without downloading a model', async ({ page }) => {
@@ -59,38 +59,42 @@ test('manual patterns require explicit save, preserve notes and survive backup w
   await page.screenshot({ path: 'test-results/pattern-mobile.png' });
 });
 
-test('analysis is opt-in, cancellation ignores late results, and errors keep user notes', async ({ page }) => {
+test('Ollama requests are opt-in, cancellation ignores late results, and errors keep notes', async ({ page }) => {
   await page.addInitScript(() => {
-    const NativeWorker = window.Worker;
-    (window as any).patternWorkers = [];
-    window.Worker = class {
-      onmessage: ((event: any) => void) | null = null;
-      onerror = null; terminated = false;
-      constructor(url: string | URL, options?: WorkerOptions) {
-        if (!String(url).includes('pattern.worker')) return new NativeWorker(url, options) as any;
-        (window as any).patternWorkers.push(this);
-      }
-      postMessage() { this.onmessage?.({ data: { type: 'analyzing' } }); }
-      terminate() { this.terminated = true; }
-    } as any;
+    const nativeFetch = window.fetch;
+    (window as any).patternRequests = [];
+    window.fetch = (input, init) => {
+      if (!String(input).startsWith('http://127.0.0.1:4175')) return nativeFetch(input, init);
+      if (String(input).endsWith('/health')) return Promise.resolve(new Response(JSON.stringify({ service: 'leaf-sentence-pattern', model: 'test-local', cpu: true })));
+      return new Promise(resolve => (window as any).patternRequests.push({ resolve, signal: init?.signal, body: init?.body }));
+    };
   });
   await openSentence(page);
-  expect(await page.evaluate(() => (window as any).patternWorkers.length)).toBe(0);
+  expect(await page.evaluate(() => (window as any).patternRequests.length)).toBe(0);
+  await page.locator('#sentence-pattern details summary').click();
+  await page.locator('#pattern-check').click();
+  await expect(page.locator('#pattern-status')).toContainText('test-local 연결됨');
   await page.locator('#study-note').fill('보존할 메모');
   await page.locator('#pattern-run').click(); await expect(page.locator('#pattern-status')).toContainText('분석하고');
   await page.locator('#study-text').fill('A new sentence.');
   await expect(page.locator('#pattern-status')).toContainText('원문이 바뀌어');
-  await page.evaluate(() => (window as any).patternWorkers[0].onmessage({ data: { type: 'result', value: { pattern: 'stale', meaning: '지난 결과' } } }));
+  expect(await page.evaluate(() => (window as any).patternRequests[0].signal.aborted)).toBe(true);
+  await page.evaluate(() => (window as any).patternRequests[0].resolve(new Response(JSON.stringify({ pattern: 'stale', meaning: '지난 결과' }))));
   await expect(page.locator('#pattern-value')).toHaveValue('');
   await page.locator('#pattern-run').click(); await expect(page.locator('#pattern-status')).toContainText('분석하고');
-  await page.evaluate(() => (window as any).patternWorkers.at(-1).onmessage({ data: { type: 'error', message: 'GPU를 사용할 수 없어요.' } }));
-  await expect(page.locator('#pattern-status')).toContainText('GPU');
+  await page.evaluate(() => (window as any).patternRequests.at(-1).resolve(new Response(JSON.stringify({ error: 'Ollama를 사용할 수 없어요.' }), { status: 503 })));
+  await expect(page.locator('#pattern-status')).toContainText('Ollama를 사용할 수');
   await expect(page.locator('#study-note')).toHaveValue('보존할 메모');
   await expect(page.locator('#pattern-run')).toBeEnabled();
   await page.locator('#pattern-run').click(); await expect(page.locator('#pattern-status')).toContainText('분석하고');
-  await page.evaluate(() => (window as any).patternWorkers.at(-1).onmessage({ data: { type: 'result', value: { pattern: 'A + depend on + B', meaning: 'A가 B에 달려 있다.' } } }));
+  await page.evaluate(() => (window as any).patternRequests.at(-1).resolve(new Response(JSON.stringify({ pattern: 'A + depend on + B', meaning: 'A가 B에 달려 있다.' }))));
   await expect(page.locator('#pattern-value')).toHaveValue('A + depend on + B');
   await expect(page.locator('#study-note')).toHaveValue('보존할 메모');
+  await page.locator('#study-text').fill('Changed after analysis.');
+  await page.locator('#pattern-apply').click();
+  await expect(page.locator('#pattern-status')).toContainText('원문이 바뀌었어요');
+  await page.locator('#pattern-meaning').fill('직접 검토한 뜻');
   await page.locator('#pattern-apply').click();
   await expect(page.locator('#study-note')).toHaveValue(/패턴 뜻:.*\n\n보존할 메모/);
+  expect(await page.evaluate(() => JSON.parse((window as any).patternRequests.at(-1).body))).toEqual({ sentence: 'A new sentence.' });
 });
