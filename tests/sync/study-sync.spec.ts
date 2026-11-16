@@ -7,6 +7,29 @@ async function login(page: Page, email: string) {
   await expect(page.locator('#study-sync')).toContainText('동기화 완료');
   await page.getByRole('tab', { name: '나의 단어장' }).click();
 }
+
+test('sentence patterns sync as notes using the existing Firestore schema', async ({ browser }) => {
+  const a = await browser.newContext(), b = await browser.newContext();
+  const first = await a.newPage(), second = await b.newPage();
+  const email = `patterns-${Date.now()}@example.test`;
+  try {
+    await login(first, email); await login(second, email);
+    await first.getByRole('tab', { name: '나의 문장' }).click();
+    await second.getByRole('tab', { name: '나의 문장' }).click();
+    await first.locator('#study-add').click();
+    await first.locator('#study-text').fill('It remains difficult for students to understand the theory.');
+    await first.locator('#study-note').fill('기존 메모');
+    await first.locator('#sentence-pattern summary').click();
+    await first.locator('#pattern-value').fill('It remains + 형용사 + for A + to B');
+    await first.locator('#pattern-meaning').fill('A가 B하는 것은 여전히 ~하다.');
+    await first.locator('#pattern-apply').click(); await first.locator('#study-submit').click();
+    await expect(first.locator('#study-sync')).toContainText('동기화 완료');
+    await expect(second.locator('.study-card')).toContainText('패턴 뜻: A가 B하는 것은 여전히 ~하다.');
+    await second.locator('.study-card').getByRole('button', { name: '패턴 분석' }).click();
+    await expect(second.locator('#pattern-value')).toHaveValue('It remains + 형용사 + for A + to B');
+    await expect(second.locator('#study-note')).toHaveValue(/기존 메모$/);
+  } finally { await a.close(); await b.close(); }
+});
 test('two devices sync, persist offline changes, isolate accounts and preserve deletions', async ({ browser }) => {
   const a = await browser.newContext({ baseURL: 'http://127.0.0.1:4174' }); const b = await browser.newContext({ baseURL: 'http://127.0.0.1:4174' });
   const first = await a.newPage(); const second = await b.newPage();

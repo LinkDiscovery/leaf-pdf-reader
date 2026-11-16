@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="UTF-8"><title>Leaf model validation</title></head><body><p id="status">Waiting</p><script type="module">
+import { CreateMLCEngine } from '@mlc-ai/web-llm';
+import { patternModel, patternInstruction, parsePattern } from '../../src/sentence-pattern';
+window.runProbe = async (sentences, thinking = false) => {
+  const started = performance.now();
+  const adapter = await navigator.gpu?.requestAdapter();
+  if (!adapter || !adapter.features.has('shader-f16')) throw new Error('Compatible WebGPU adapter unavailable');
+  const model = new URLSearchParams(location.search).get('model') || patternModel;
+  window.probeState = { model, instruction: patternInstruction, thinking, progress: 'Loading', adapter: { vendor: adapter.info.vendor, device: adapter.info.device, description: adapter.info.description } };
+  const engine = await CreateMLCEngine(model, { initProgressCallback: report => { window.probeState.progress = report.text; document.querySelector('#status').textContent = report.text; } }, { context_window_size: 4096 });
+  window.probeState.loadMs = performance.now() - started;
+  window.probeState.results = [];
+  for (const sentence of sentences) {
+    const start = performance.now();
+    let deadline;
+    const request = engine.chat.completions.create({ messages: [{ role: 'system', content: patternInstruction }, { role: 'user', content: sentence }], temperature: thinking ? 0.6 : 0, max_tokens: thinking ? 1800 : 220, extra_body: { enable_thinking: thinking } });
+    const reply = await Promise.race([request, new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Inference exceeded 90 seconds')), 90000); })]).finally(() => clearTimeout(deadline));
+    const raw = reply.choices[0].message.content;
+    let parsed; try { parsed = parsePattern(raw); } catch (error) { parsed = { error: String(error) }; }
+    window.probeState.results.push({ sentence, raw, parsed, finish: reply.choices[0].finish_reason, ms: performance.now() - start });
+  }
+  await engine.unload();
+  return window.probeState;
+};
+</script></body></html>
+
+
+
+

@@ -26,6 +26,16 @@
     <p id="study-duplicate" class="muted" hidden>같은 표현이 이미 있어요. 다른 뜻이나 예문이면 새 항목으로 저장할 수 있어요.</p>
     <div id="study-word-fields"><label for="study-english">영어 뜻</label><textarea id="study-english" maxlength="4000" rows="2"></textarea><label for="study-example">예시문장</label><textarea id="study-example" maxlength="4000" rows="2"></textarea></div>
     <label for="study-korean" id="study-korean-label">한국어 뜻</label><textarea id="study-korean" maxlength="4000" rows="2"></textarea>
+    <details id="sentence-pattern" hidden>
+      <summary>문장 패턴 분석 <span>개발용 실험 · 배포 보류</span></summary>
+      <p><strong>정확도 검사에서 문법 오류가 확인된 실험 기능입니다.</strong> 자동 분석 결과를 학습용 정답으로 사용하지 마세요. 패턴을 직접 입력해 저장하는 흐름을 시험할 수 있습니다.</p>
+      <p>핵심 패턴과 뜻의 <strong>AI 초안</strong>을 한 줄씩 제안합니다. 처음 시작할 때 모델 약 2.3GB를 내려받으며, 이후에는 이 브라우저에 저장된 모델을 재사용합니다. GPU를 지원하는 PC의 Chrome·Edge에서 사용해 주세요. 문장은 분석 서버로 보내지 않습니다.</p>
+      <div class="pattern-actions"><button id="pattern-run" type="button" class="button secondary">분석 시작</button><button id="pattern-cancel" type="button" class="text-button" hidden>분석 취소</button></div>
+      <p id="pattern-status" role="status" aria-live="polite"></p>
+      <label for="pattern-value">핵심 패턴</label><input id="pattern-value" maxlength="250" placeholder="It remains + 형용사 + for A + to B">
+      <label for="pattern-meaning">패턴 뜻</label><input id="pattern-meaning" maxlength="300" placeholder="A가 B하는 것은 여전히 ~하다.">
+      <div class="pattern-actions"><button id="pattern-apply" type="button" class="button secondary">메모에 넣기</button><span>직접 입력·수정할 수도 있어요.</span></div>
+    </details>
     <label for="study-note">내 메모 <span class="muted">선택</span></label><textarea id="study-note" maxlength="4000" rows="2"></textarea>
     <div class="study-source-fields"><label>출처<input id="study-source" maxlength="500" placeholder="책 또는 PDF 이름"></label><label>페이지<input id="study-page" type="number" min="0" max="1000000" step="1" value="0"></label></div>
     <p id="study-form-error" role="alert" hidden></p>

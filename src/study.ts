@@ -3,6 +3,7 @@ import { emptyDraft, readBackup, validEntry, type StudyDraft, type StudyEntry, t
 import { localEntries, writeLocal } from './study-local';
 import type { CloudState, StudyCloud } from './study-cloud';
 import type { WordAudio } from './word-audio';
+import { setupPatternEditor } from './pattern-editor';
 import './study.css';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -28,6 +29,7 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
   let epoch = 0;
   let importing = false;
   const editor = $<HTMLDialogElement>('study-editor');
+  const patternEditor = setupPatternEditor();
   const channel = typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel('leaf-study-local');
   const owner = () => remote?.user?.uid || 'local';
   function showError(message: string) { error = message; render(); notify(message); }
@@ -85,6 +87,7 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
       const footer = node('div', '', 'study-card-footer');
       footer.append(node('span', [entry.source, entry.page ? `${entry.page}쪽` : ''].filter(Boolean).join(' · '), 'study-source'));
       const actions = node('div', '', 'study-card-actions');
+      if (entry.kind === 'sentence') actions.append(button('패턴 분석', () => openEditor(entry, entry, true)));
       actions.append(button(entry.learned ? '다시 학습' : '외웠어요', () => void learned(entry)), button('수정', () => openEditor(entry, entry)), button('삭제', () => void remove(entry), 'text-button danger'));
       for (const action of actions.querySelectorAll('button')) action.disabled = !ready || importing;
       footer.append(actions); card.append(footer); list.append(card);
@@ -115,7 +118,7 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
       if (next !== undefined) { event.preventDefault(); tabs[next].click(); tabs[next].focus(); }
     };
   });
-  function openEditor(draft: StudyDraft, existing?: StudyEntry) {
+  function openEditor(draft: StudyDraft, existing?: StudyEntry, analyze = false) {
     if (!ready) { notify('학습 기록을 준비 중이에요. 잠시 후 다시 눌러 주세요.'); return; }
     editorEntry = existing; editorKind = draft.kind; editorOwner = owner();
     $('study-editor-title').textContent = `${draft.kind === 'word' ? '단어' : '문장'} ${existing ? '수정' : '저장'}`;
@@ -124,9 +127,11 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
     $('study-word-fields').hidden = draft.kind !== 'word';
     $('study-editor-storage').textContent = remote?.user ? '내 계정에 저장합니다. 연결이 끊기면 전송 대기 상태로 보관해요.' : '현재 브라우저에 저장합니다. 나중에 로그인해서 기기 기록을 가져올 수 있어요.';
     for (const key of ['text', 'english', 'korean', 'example', 'note', 'source', 'page'] as const) $<HTMLInputElement>(`study-${key}`).value = String(draft[key]);
+    patternEditor.open(draft.kind === 'sentence', analyze);
     $('study-form-error').hidden = true;
     $<HTMLButtonElement>('study-submit').disabled = false;
     duplicate(); editor.showModal();
+    if (analyze) { $('sentence-pattern').scrollIntoView({ block: 'nearest' }); $('pattern-run').focus({ preventScroll: true }); }
   }
   function duplicate() {
     $('study-duplicate').hidden = !entries.some(entry => entry.kind === editorKind && entry.id !== editorEntry?.id && entry.text.toLocaleLowerCase() === $<HTMLTextAreaElement>('study-text').value.trim().toLocaleLowerCase());

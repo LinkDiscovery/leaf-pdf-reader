@@ -64,6 +64,13 @@ dialog p { font-size: 1rem; line-height: 1.7; color: #53654d; }
 .study-search { min-width: 0; }
 #study-editor input, #study-editor textarea { font-size: 1rem; }
 #study-editor h2, #study-delete-dialog h2 { font-size: 1.4rem; }
+#sentence-pattern { margin: 18px 0; padding: 16px; border: 1px solid #cddbc6; border-radius: 12px; background: #f4f8ef; }
+#sentence-pattern summary { font-size: 1rem; font-weight: 600; cursor: pointer; }
+#sentence-pattern summary span { font-size: .875rem; font-weight: 400; color: #52684b; margin-left: 8px; }
+#sentence-pattern p { font-size: .875rem; line-height: 1.8; margin: 12px 0; }
+.pattern-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.pattern-actions span { font-size: .875rem; color: #52684b; }
+#pattern-status:empty { display: none; }
 #welcome { max-width: 1000px; padding: 30px clamp(20px, 4vw, 48px); }
 #welcome h1 { font-size: 2.25rem; line-height: 1.4; margin-bottom: 12px; }
 .welcome-eyebrow { margin-bottom: 12px; }

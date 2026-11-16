@@ -1,5 +1,7 @@
 # Leaf PDF 리더 (Leaf PDF Reader)
 
+> 이 브랜치는 **문장 패턴 분석 실험용**입니다. 브라우저 모델의 문법 정확도·GPU 안정성 검사에서 문제가 확인되어 운영 배포를 보류했습니다. 기존 서비스는 `main`에 있습니다. [검증 결과와 개발 UI 사용법](docs/pattern-analysis.md)을 확인하세요.
+
 영어 원서·논문 읽기에 필요한 **영영·영한 사전, 문장 번역, 형광펜·메모, 나의 단어장·문장 모음, AI 바로가기(Claude·GPT·Gemini)**를 한 화면에 담은 PDF 리더입니다. PDF 원본은 브라우저에서 열며 업로드하지 않습니다. 로그인하면 사용자가 저장한 단어·문장과 그 뜻·출처·복습 상태만 Firebase에 동기화합니다.
 
 - 🚀 **설치 없이 웹에서 바로 써보기:** **[https://linkdiscovery.github.io/leaf-pdf-reader/](https://linkdiscovery.github.io/leaf-pdf-reader/)**
