@@ -17,7 +17,7 @@ test('dictionary draft, CRUD, review, persistence, separate sentence tab and saf
   await expect(page.locator('#korean-result')).toContainText('기억하다');
   await page.locator('#dictionary-save').click();
   await expect(page.locator('#study-text')).toHaveValue('retain');
-  await expect(page.locator('#study-english')).toHaveValue('To keep something.');
+  await expect(page.locator('#study-english')).toHaveValue('[동사] To keep something.');
   await expect(page.locator('#study-korean')).toHaveValue('기억하다');
   await expect(page.locator('#study-example')).toHaveValue('Reading helps us retain words.');
   await page.locator('#study-submit').click();

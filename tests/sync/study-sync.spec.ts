@@ -44,3 +44,33 @@ test('guest records migrate explicitly and reimport does not overwrite account e
   await page.locator('#study-migrate').click(); await expect(page.locator('#toast')).toContainText('0개를 가져왔어요'); await expect(page.locator('.study-card')).toContainText('계정에서 수정한 뜻');
   await page.locator('#study-logout').click(); await expect(page.locator('#study-sync')).toContainText('이 기기에 저장'); await expect(page.locator('.study-card')).toContainText('기기 뜻');
 });
+
+test('three meanings for each of three parts of speech sync intact to another device', async ({ browser }) => {
+  const a = await browser.newContext({ baseURL: 'http://127.0.0.1:4174' }), b = await browser.newContext({ baseURL: 'http://127.0.0.1:4174' });
+  const first = await a.newPage(), second = await b.newPage();
+  const parts = ['noun', 'verb', 'adjective'], labels = ['명사', '동사', '형용사'];
+  const english = parts.flatMap((pos, p) => [1, 2, 3].map(n => `[${labels[p]}] ${pos} meaning ${n}`)).join('\n');
+  const korean = parts.flatMap((_, p) => [1, 2, 3].map(n => `[${labels[p]}] 뜻 ${p + 1}-${n}`)).join('\n');
+  try {
+    await first.route('https://api.dictionaryapi.dev/**', route => route.fulfill({ json: [{ word: 'testword', meanings: parts.map(partOfSpeech => ({ partOfSpeech, definitions: [1, 2, 3, 4].map(n => ({ definition: `${partOfSpeech} meaning ${n}` })) })) }] }));
+    await first.route('https://translate.googleapis.com/**', route => route.fulfill({ json: [[['뜻 1-1', 'testword']], parts.map((pos, p) => [pos, [1, 2, 3, 4].map(n => `뜻 ${p + 1}-${n}`)])] }));
+    const email = `multi-pos-${Date.now()}@example.test`;
+    await login(first, email); await login(second, email);
+    await first.getByRole('tab', { name: 'PDF 읽기' }).click();
+    await first.locator('#word-input').fill('testword'); await first.locator('#word-input').press('Enter');
+    for (const panel of ['#english-result', '#korean-result']) for (const pos of parts) {
+      const checks = first.locator(`${panel} .meaning-check[data-pos="${pos}"]`);
+      await checks.nth(1).check(); await checks.nth(2).check(); await expect(checks.nth(3)).toBeDisabled();
+    }
+    await first.reload();
+    await expect(first.locator('#dictionary-en-count')).toHaveText('선택 9개 · 품사별 3개');
+    await expect(first.locator('#dictionary-ko-count')).toHaveText('선택 9개 · 품사별 3개');
+    await expect(first.locator('#study-sync')).toContainText('동기화 완료');
+    await first.locator('#dictionary-save').click();
+    await expect(first.locator('#study-english')).toHaveValue(english); await expect(first.locator('#study-korean')).toHaveValue(korean);
+    await first.locator('#study-submit').click();
+    await expect(second.locator('.study-card')).toContainText('testword');
+    await second.locator('.study-card').getByRole('button', { name: '수정' }).click();
+    await expect(second.locator('#study-english')).toHaveValue(english); await expect(second.locator('#study-korean')).toHaveValue(korean);
+  } finally { await a.close(); await b.close(); }
+});

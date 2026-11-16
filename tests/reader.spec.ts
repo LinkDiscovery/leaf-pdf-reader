@@ -54,7 +54,7 @@ test('home layout, local Korean inflections, latest result, offline English fail
   await page.locator('#word-input').fill(' “Running!” ');
   await page.locator('#dictionary-form').evaluate(form=>(form as HTMLFormElement).requestSubmit());
   await expect(page.locator('#word-title')).toHaveText('running');
-  await expect(page.locator('#korean-badge')).toHaveText('온라인 API');
+  await expect(page.locator('#korean-badge')).toHaveText('온라인 + 내장 보충');
   await expect(page.locator('#korean-result')).toContainText('달리');
   await expect(page.locator('#english-result')).toContainText('A definition for running');
   await page.locator('#word-input').fill('slowword');await page.locator('#word-input').press('Enter');

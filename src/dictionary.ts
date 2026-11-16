@@ -1,6 +1,6 @@
+import { addSearch, boundedSenses, canonicalPos, historyKey, initializeSelection, lookupDraft, posLabels, restoreHistory, selection, senseKey, setSelection, visibleSenses, type Language, type Lookup, type ReadingSource, type SearchRecord, type Sense } from './dictionary-history';
 import { emptyDraft, type StudyDraft } from './study-model';
 import type { WordAudio } from './word-audio';
-type ReadingSource = { source: string; page: number; example: string };
 let studyDraft: StudyDraft = emptyDraft('word');
 export function dictionaryStudyDraft(): StudyDraft { return { ...studyDraft }; }
 type LocalDictionary = {
@@ -38,22 +38,6 @@ function message(panel: HTMLElement, value: string) { panel.replaceChildren(elem
 let localPromise: Promise<LocalDictionary> | undefined;
 const cache = new Map<string, EnglishEntry[] | null>();
 const koCache = new Map<string, OnlineKoreanResult | null>();
-const posNames: Record<string, string> = {
-  'n.': '명사', 'noun': '명사',
-  'v.': '동사', 'verb': '동사',
-  'adj.': '형용사', 'adjective': '형용사',
-  'adv.': '부사', 'adverb': '부사',
-  'pron.': '대명사', 'pronoun': '대명사',
-  'prep.': '전치사', 'preposition': '전치사',
-  'conj.': '접속사', 'conjunction': '접속사',
-  'interj.': '감탄사', 'interjection': '감탄사',
-  'det.': '한정사', 'determiner': '한정사',
-  'num.': '수사', 'numeral': '수사',
-  'suf.': '접미사', 'suffix': '접미사',
-  'pref.': '접두사', 'prefix': '접두사',
-  'art.': '관사', 'article': '관사',
-  'phrase': '구문', 'abbreviation': '약어', 'auxiliary verb': '조동사'
-};
 function localDictionary() {
   return localPromise ??= fetch(import.meta.env.BASE_URL + 'dictionary/en-ko.json').then(r => {
     if (!r.ok) throw new Error('Dictionary unavailable');
@@ -94,229 +78,254 @@ function parseOnlineKorean(raw: unknown, queryWord: string): OnlineKoreanResult 
   return { primary, groups };
 }
 export function setupDictionary(audio: WordAudio) {
-  const form = document.querySelector<HTMLFormElement>('#dictionary-form')!;
-  const input = document.querySelector<HTMLInputElement>('#word-input')!;
-  const title = document.querySelector<HTMLElement>('#word-title')!;
-  const wordHeading = document.createElement('div'); wordHeading.className = 'dictionary-word-heading';
-  title.before(wordHeading); wordHeading.append(title);
-  const audioSlot = document.createElement('span'); audioSlot.id = 'dictionary-audio'; wordHeading.append(audioSlot);
-  const en = document.querySelector<HTMLElement>('#english-result')!;
-  const ko = document.querySelector<HTMLElement>('#korean-result')!;
-  const koBadge = document.querySelector<HTMLElement>('#korean-badge');
-  const recent = document.querySelector<HTMLElement>('#recent-words')!;
-  let sequence = 0;
-  let abort: AbortController | undefined;
-  const history: string[] = [];
+  const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+  const form = $<HTMLFormElement>('dictionary-form'), input = $<HTMLInputElement>('word-input'), title = $('word-title');
+  const heading = element('div', '', 'dictionary-word-heading'); title.before(heading); heading.append(title);
+  const audioSlot = element('span', ''); audioSlot.id = 'dictionary-audio'; heading.append(audioSlot);
+  const en = $('english-result'), ko = $('korean-result'), recent = $('recent-words');
+  const pos = $<HTMLSelectElement>('dictionary-pos'), status = $('dictionary-choice-status');
+  let history = restoreHistory(null);
+  try { history = restoreHistory(localStorage.getItem(historyKey)); } catch { /* Memory history remains available. */ }
+  let sequence = 0, abort: AbortController | undefined;
   void localDictionary().catch(() => {});
-  function renderLocalKorean(word: string, token: number) {
-    void localDictionary().then(dictionary => {
-      if (token !== sequence) return;
-      if (koBadge) koBadge.textContent = '오프라인 내장';
+
+  function persist() {
+    try { localStorage.setItem(historyKey, JSON.stringify({ version: 1, ...history })); }
+    catch { status.textContent = '기기 저장 공간을 사용할 수 없어 검색 기록은 이 화면에서만 유지됩니다.'; }
+  }
+  function current() { return history.entries[history.index]; }
+  function navigation() {
+    $<HTMLButtonElement>('dictionary-back').disabled = history.index <= 0;
+    $<HTMLButtonElement>('dictionary-forward').disabled = history.index < 0 || history.index >= history.entries.length - 1;
+    $('dictionary-position').textContent = history.entries.length ? (history.index + 1) + ' / ' + history.entries.length : '최근 검색 3개';
+    $<HTMLButtonElement>('dictionary-history-clear').disabled = !history.entries.length;
+    recent.replaceChildren();
+    for (let i = history.entries.length - 1; i >= 0; i--) {
+      const entry = history.entries[i], button = element('button', entry.query, 'word-chip');
+      button.type = 'button'; button.title = entry.query;
+      if (i === history.index) button.setAttribute('aria-current', 'true');
+      button.onclick = () => { history.index = i; void activate(entry); };
+      recent.append(button);
+    }
+    if (!history.entries.length) recent.append(element('span', '최근 검색 3개와 선택한 뜻을 이 브라우저에 보관해요.', 'muted'));
+  }
+  function updateChoices(record: SearchRecord) {
+    for (const language of ['english', 'korean'] as const) {
+      const selected = selection(record, language);
+      const counts = new Map<string, number>();
+      for (const sense of visibleSenses(record, language)) if (selected.includes(senseKey(sense))) counts.set(sense.pos, (counts.get(sense.pos) || 0) + 1);
+      const panel = language === 'english' ? en : ko;
+      $(language === 'english' ? 'dictionary-en-count' : 'dictionary-ko-count').textContent = '선택 ' + [...counts.values()].reduce((a, b) => a + b, 0) + '개 · 품사별 3개';
+      for (const counter of panel.querySelectorAll<HTMLElement>('[data-count-pos]')) counter.textContent = (counts.get(counter.dataset.countPos || '') || 0) + '/3 선택';
+      for (const checkbox of panel.querySelectorAll<HTMLInputElement>('input.meaning-check')) {
+        checkbox.checked = selected.includes(checkbox.dataset.key || '');
+        checkbox.disabled = (counts.get(checkbox.dataset.pos || '') || 0) >= 3 && !checkbox.checked;
+      }
+    }
+    studyDraft = lookupDraft(record);
+    const save = $<HTMLButtonElement>('dictionary-save');
+    if (save) { save.hidden = false; save.textContent = record.kind === 'word' ? '＋ 단어장에 저장' : '＋ 문장 모음에 저장'; }
+    persist();
+  }
+  function choice(record: SearchRecord, language: Language, sense: Sense, strong: boolean) {
+    const label = element('label', '', 'meaning-choice');
+    const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.className = 'meaning-check';
+    checkbox.dataset.key = senseKey(sense);
+    checkbox.dataset.pos = sense.pos;
+    checkbox.setAttribute('aria-label', (language === 'english' ? '영영' : '영한') + ' ' + (posLabels[sense.pos] || '뜻') + ' 선택: ' + sense.text);
+    checkbox.onchange = () => {
+      const keys = selection(record, language).filter(key => key !== senseKey(sense));
+      if (checkbox.checked) keys.push(senseKey(sense));
+      setSelection(record, language, keys); updateChoices(record);
+      status.textContent = '품사마다 영영·영한 뜻을 각각 3개까지 선택할 수 있어요. 현재 표시된 품사의 체크한 뜻을 저장합니다.';
+    };
+    label.append(checkbox, element(strong ? 'strong' : 'span', sense.text, strong ? 'ko-translation' : 'en-translation'));
+    return label;
+  }
+  function renderMeanings(record: SearchRecord, language: Language) {
+    const panel = language === 'english' ? en : ko, data = record[language];
+    panel.replaceChildren();
+    if (!data) { message(panel, language === 'english' ? '영영 뜻을 찾고 있어요…' : '영한 뜻을 찾고 있어요…'); return; }
+    if (language === 'english') for (const phonetic of data.phonetics || []) panel.append(element('p', phonetic, 'phonetic'));
+    const senses = visibleSenses(record, language);
+    if (!senses.length) {
+      message(panel, record.pos !== 'all' && data.senses.length ? '이 품사의 뜻은 이 사전에 없어요. 저장 창에서 직접 입력할 수 있습니다.' : data.error || '등록된 뜻이 없어요. 다른 형태의 단어로 검색해 보세요.');
+      return;
+    }
+    const groups = new Map<string, Sense[]>();
+    for (const sense of senses) { const key = sense.pos; groups.set(key, [...(groups.get(key) || []), sense]); }
+    const article = element('article', '', language === 'korean' ? 'local-entry' : 'english-entry');
+    for (const [part, items] of groups) {
+      const group = element('section', '', language === 'korean' ? 'ko-meaning-group' : 'en-meaning-group');
+      group.append(element('span', posLabels[part] || '뜻', language === 'korean' ? 'ko-pos' : 'pos'));
+      const counter = element('span', '', 'dictionary-supplement'); counter.dataset.countPos = part; group.append(counter);
+      if (items.every(sense => sense.local) && data.label.includes('온라인')) group.append(element('span', '내장 보충', 'dictionary-supplement'));
+      const list = element('ol', '', language === 'korean' ? 'ko-meanings' : 'en-meanings');
+      for (const sense of items) {
+        const row = element('li', '', language === 'korean' ? 'ko-meaning' : 'en-meaning');
+        if (sense.headword && sense.headword.toLowerCase() !== record.query.toLowerCase()) row.append(element('p', '기본형 · ' + sense.headword, 'base-word'));
+        row.append(choice(record, language, sense, language === 'korean'));
+        if (sense.example) row.append(element('p', sense.example, 'example'));
+        if (sense.detail) {
+          const details = element('details', '', 'ko-explanation');
+          details.append(element('summary', '자세한 영문 설명'), element('p', sense.detail)); row.append(details);
+        }
+        list.append(row);
+      }
+      group.append(list); article.append(group);
+    }
+    panel.append(article);
+    for (const source of data.sources || []) if (source.startsWith('https://')) {
+      const link = element('a', '정의 출처 ↗', 'source-link'); link.href = source; link.target = '_blank'; link.rel = 'noopener noreferrer'; panel.append(link);
+    }
+  }
+  function render(record: SearchRecord) {
+    if (current() !== record) return;
+    initializeSelection(record, 'english'); initializeSelection(record, 'korean');
+    title.textContent = record.query.length > 42 ? record.query.slice(0, 42) + '…' : record.query;
+    $('dictionary-empty').hidden = true; $('dictionary-content').hidden = false;
+    $('dictionary-picks').hidden = record.kind !== 'word';
+    $('dictionary-en-count').hidden = $('dictionary-ko-count').hidden = record.kind !== 'word';
+    $('korean-badge').textContent = record.korean?.label || '조회 중';
+    if (record.kind === 'word') {
+      const available = new Set([...(record.english?.senses || []), ...(record.korean?.senses || [])].map(sense => sense.pos).filter(Boolean));
+      pos.replaceChildren();
+      const all = element('option', '전체 품사 · 함께 저장'); all.value = 'all'; pos.append(all);
+      for (const code of Object.keys(posLabels)) if (available.has(code) || record.pos === code) {
+        const option = element('option', posLabels[code] + '만 · 따로 저장'); option.value = code; pos.append(option);
+      }
+      pos.value = record.pos;
+      renderMeanings(record, 'english'); renderMeanings(record, 'korean');
+    } else {
+      en.replaceChildren(element('p', '문장 속 단어를 누르면 단어 사전으로 이동해요. 뒤로가기로 문장 번역을 다시 볼 수 있어요.', 'muted'));
+      const wrap = element('div', '', 'sentence-word-chips');
+      for (const word of [...new Set(record.query.split(/[^a-zA-Z'’-]+/).map(normalizeWord).filter(word => word.length >= 2))].slice(0, 18)) {
+        const chip = element('button', word, 'word-chip'); chip.type = 'button';
+        chip.onclick = () => void search(word, { ...record.source, example: record.query }); wrap.append(chip);
+      }
+      en.append(wrap);
+      message(ko, record.korean?.senses[0]?.text || record.korean?.error || '문장을 번역하고 있어요…');
+    }
+    navigation(); updateChoices(record);
+  }
+  pos.onchange = () => {
+    const record = current(); if (!record) return;
+    record.pos = pos.value;
+    status.textContent = pos.value === 'all' ? '모든 품사의 선택한 뜻을 한 카드에 함께 저장합니다. 품사마다 영영·영한 각각 최대 3개예요.' : '현재 품사의 선택한 뜻만 저장합니다. 다른 품사의 선택도 유지되며 전체 품사로 돌아가면 함께 저장할 수 있어요.';
+    render(record);
+  };
+  $('dictionary-back').onclick = () => { if (history.index > 0) { history.index--; void activate(current()); } };
+  $('dictionary-forward').onclick = () => { if (history.index < history.entries.length - 1) { history.index++; void activate(current()); } };
+  $('dictionary-history-clear').onclick = () => {
+    sequence++; abort?.abort(); audio.stop(); audioSlot.replaceChildren(); cache.clear(); koCache.clear();
+    history.entries = []; history.index = -1; studyDraft = emptyDraft('word'); input.value = '';
+    $('dictionary-content').hidden = true; $('dictionary-empty').hidden = false;
+    const save = $('dictionary-save'); if (save) save.hidden = true;
+    navigation(); persist();
+  };
+
+  async function localSenses(word: string): Promise<Sense[]> {
+    try {
+      const dictionary: LocalDictionary = await localDictionary();
       const ids = Object.hasOwn(dictionary.lookup, word) ? dictionary.lookup[word] : [];
-      if (!ids.length) { message(ko, '등록된 영한 뜻이 없어요. 다른 형태의 단어로 검색해 보세요.'); return; }
-      ko.replaceChildren();
+      const senses: Sense[] = [];
       for (const id of ids) {
         const [headword, html] = dictionary.entries[id];
-        const article = element('article', '', 'local-entry');
-        if (headword.toLowerCase() !== word) article.append(element('p', '기본형 · ' + headword, 'base-word'));
         const parsed = new DOMParser().parseFromString(html, 'text/html');
         for (const block of parsed.body.children) {
-          const translations = [...block.querySelectorAll('b,strong')];
-          if (!translations.length) continue;
-          const part = block.querySelector('i')?.textContent?.trim() || '';
-          const group = element('section', '', 'ko-meaning-group');
-          if (part) group.append(element('span', posNames[part] || part, 'ko-pos'));
-          const list = element('ol', '', 'ko-meanings');
-          for (const translation of translations) {
-            const row = element('li', '', 'ko-meaning');
-            row.append(element('strong', translation.textContent || '', 'ko-translation'));
-            const details = element('details', '', 'ko-explanation');
-            let next = translation.nextElementSibling;
-            const explanation: string[] = [];
+          const part = canonicalPos(block.querySelector('i')?.textContent || '');
+          for (const translation of block.querySelectorAll('b,strong')) {
+            const explanation: string[] = []; let next = translation.nextElementSibling;
             while (next && !['B', 'STRONG', 'BR'].includes(next.tagName)) {
               const text = next.textContent?.trim() || '';
               if (/^[—–]/.test(text)) explanation.push(text.replace(/^[—–]\s*/, ''));
               next = next.nextElementSibling;
             }
-            if (explanation.length) {
-              details.append(element('summary', '자세한 영문 설명'));
-              details.append(element('p', explanation.join(' ')));
-              row.append(details);
-            }
-            list.append(row);
+            senses.push({ pos: part, text: translation.textContent || '', detail: explanation.join(' '), headword, local: true });
           }
-          group.append(list); article.append(group);
         }
-        if (!article.querySelector('.ko-translation')) article.append(element('p', parsed.body.textContent || '뜻이 없어요.'));
-        ko.append(article);
       }
-      studyDraft.korean = ko.querySelector('.ko-translation')?.textContent?.trim() || '';
-    }).catch(() => {
-      if (token === sequence) message(ko, '영한 사전 파일을 읽지 못했어요. 앱을 다시 실행한 뒤 검색해 주세요.');
-    });
+      return boundedSenses(senses);
+    } catch { return []; }
   }
-  function renderOnlineKorean(result: OnlineKoreanResult, token: number, isSentence = false) {
-    if (token !== sequence) return;
-    studyDraft.korean = result.primary || result.groups[0]?.items[0]?.meaning || '';
-    if (koBadge) koBadge.textContent = isSentence ? '문장 번역 API' : '온라인 API';
-    ko.replaceChildren();
-    const article = element('article', '', 'local-entry');
-    if (result.groups.length && !isSentence) {
-      const allMeanings = new Set(result.groups.flatMap(g => g.items.map(i => i.meaning)));
-      if (result.primary && !allMeanings.has(result.primary)) {
-        const primaryGroup = element('section', '', 'ko-meaning-group');
-        primaryGroup.append(element('span', '대표 뜻', 'ko-pos'));
-        const list = element('ol', '', 'ko-meanings');
-        const row = element('li', '', 'ko-meaning');
-        row.append(element('strong', result.primary, 'ko-translation'));
-        list.append(row);
-        primaryGroup.append(list);
-        article.append(primaryGroup);
+  async function korean(record: SearchRecord, signal: AbortSignal): Promise<Lookup> {
+    const local = record.kind === 'word' ? localSenses(record.query) : Promise.resolve([]);
+    let online: OnlineKoreanResult | null = null;
+    try {
+      if (koCache.has(record.query)) online = koCache.get(record.query)!;
+      else {
+        const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&dt=bd&q=' + encodeURIComponent(record.query);
+        const response = await fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(12000)]) });
+        if (!response.ok) throw new Error('Korean API error');
+        online = parseOnlineKorean(await response.json(), record.query); koCache.set(record.query, online);
+        if (koCache.size > 50) koCache.delete(koCache.keys().next().value!);
       }
-      for (const g of result.groups) {
-        const group = element('section', '', 'ko-meaning-group');
-        if (g.pos) group.append(element('span', posNames[g.pos.toLowerCase()] || g.pos, 'ko-pos'));
-        const list = element('ol', '', 'ko-meanings');
-        for (const item of g.items) {
-          const row = element('li', '', 'ko-meaning');
-          row.append(element('strong', item.meaning, 'ko-translation'));
-          if (item.synonyms.length) {
-            const details = element('details', '', 'ko-explanation');
-            details.append(element('summary', '자세한 영문 설명'));
-            details.append(element('p', '유의어 · ' + item.synonyms.join(', ')));
-            row.append(details);
-          }
-          list.append(row);
-        }
-        group.append(list);
-        article.append(group);
-      }
-    } else if (result.primary) {
-      const group = element('section', '', 'ko-meaning-group');
-      group.append(element('span', isSentence ? '한국어 번역' : '뜻', 'ko-pos'));
-      const list = element('ol', '', 'ko-meanings');
-      const row = element('li', '', 'ko-meaning');
-      row.append(element('strong', result.primary, 'ko-translation'));
-      list.append(row);
-      group.append(list);
-      article.append(group);
+    } catch { /* Partial/offline results are supplemented below, not treated as complete. */ }
+    const offline = await local;
+    if (record.kind === 'sentence') return { senses: online?.primary ? [{ pos: '', text: online.primary.slice(0, 4000) }] : [], label: '문장 번역 API', error: '문장 번역에 연결하지 못했어요. 개별 단어는 내장 사전으로 확인할 수 있습니다.' };
+    const senses: Sense[] = [];
+    if (online) {
+      for (const group of online.groups) for (const item of group.items) senses.push({ pos: canonicalPos(group.pos), text: item.meaning, detail: item.synonyms.length ? '유의어 · ' + item.synonyms.join(', ') : '' });
+      if (online.primary && !senses.some(sense => sense.text === online!.primary)) senses.unshift({ pos: '', text: online.primary });
     }
-    ko.append(article);
+    const onlineParts = new Set(senses.map(sense => sense.pos).filter(Boolean));
+    const supplement = offline.filter(sense => !onlineParts.has(sense.pos));
+    return { senses: boundedSenses([...senses, ...supplement]), label: online ? supplement.length ? '온라인 + 내장 보충' : '온라인 API' : '오프라인 내장', error: '등록된 영한 뜻이 없어요. 다른 형태의 단어로 검색하거나 저장 창에서 직접 입력해 주세요.' };
+  }
+  async function english(record: SearchRecord, signal: AbortSignal): Promise<Lookup> {
+    try {
+      let entries = cache.get(record.query);
+      if (!cache.has(record.query)) {
+        const response = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(record.query), { signal: AbortSignal.any([signal, AbortSignal.timeout(12000)]) });
+        if (response.status === 404) entries = null;
+        else {
+          if (!response.ok) throw new Error('English API error');
+          entries = await response.json(); if (!Array.isArray(entries)) throw new Error('Invalid dictionary response');
+        }
+        cache.set(record.query, entries || null);
+        if (cache.size > 50) cache.delete(cache.keys().next().value!);
+      }
+      const senses: Sense[] = [], phonetics: string[] = [], sources: string[] = [];
+      for (const entry of entries || []) {
+        const phonetic = entry.phonetic || entry.phonetics?.find(item => item.text)?.text;
+        if (typeof phonetic === 'string' && !phonetics.includes(phonetic)) phonetics.push(phonetic.slice(0, 200));
+        for (const group of entry.meanings || []) for (const definition of (group.definitions || []).slice(0, 6)) {
+          if (typeof definition.definition === 'string') senses.push({ pos: canonicalPos(group.partOfSpeech || ''), text: definition.definition, example: typeof definition.example === 'string' ? definition.example : undefined });
+        }
+        for (const source of entry.sourceUrls || []) if (typeof source === 'string' && source.startsWith('https://') && !sources.includes(source)) sources.push(source.slice(0, 2000));
+      }
+      return { senses: boundedSenses(senses), label: '온라인', phonetics: phonetics.slice(0, 10), sources: sources.slice(0, 10) };
+    } catch { return { senses: [], label: '온라인', error: '영영 사전에 연결할 수 없어요. 인터넷 연결을 확인한 뒤 다시 검색해 주세요. 영한 사전은 계속 사용할 수 있어요.' }; }
+  }
+  async function activate(record: SearchRecord) {
+    input.setCustomValidity('');
+    input.value = record.query;
+    const token = ++sequence; abort?.abort(); abort = new AbortController(); const signal = abort.signal;
+    audio.stop(); audioSlot.replaceChildren(); if (record.kind === 'word') audioSlot.append(audio.createButton(record.query));
+    status.textContent = '품사마다 영영·영한 각각 3개까지 체크하세요. 각 품사의 첫 뜻이 기본 선택되며, 품사를 고르면 해당 품사만 저장합니다.';
+    render(record);
+    await Promise.allSettled((['english', 'korean'] as const).map(async language => {
+      if (record[language] || (language === 'english' && record.kind === 'sentence')) return;
+      const result = await (language === 'english' ? english(record, signal) : korean(record, signal));
+      if (token !== sequence || signal.aborted) return;
+      record[language] = result; render(record);
+    }));
   }
   async function search(value: string, source?: ReadingSource) {
-    const cleanedSentence = normalizeSentence(value);
-    const word = normalizeWord(value);
-    const isWordQuery = word.length > 0 && word.length <= 100 && /^[a-z][a-z'’ -]*$/.test(word) && word.split(/\s+/).length <= 3;
-    const isSentenceQuery = !isWordQuery && cleanedSentence.length > 0 && cleanedSentence.length <= 1000 && /[a-zA-Z]/.test(cleanedSentence);
-    if (!isWordQuery && !isSentenceQuery) {
+    const cleaned = normalizeSentence(value), word = normalizeWord(value);
+    const isWord = word.length > 0 && word.length <= 100 && /^[a-z][a-z'’ -]*$/.test(word) && word.split(/\s+/).length <= 3;
+    if (!isWord && !(cleaned.length > 0 && cleaned.length <= 1000 && /[a-zA-Z]/.test(cleaned))) {
       input.setCustomValidity('영어 단어 또는 짧은 구문을 입력하세요.'); input.reportValidity(); return;
     }
     input.setCustomValidity('');
-    audio.stop();
-    audioSlot.replaceChildren();
-    if (isWordQuery) audioSlot.append(audio.createButton(word));
-    const query = isWordQuery ? word : cleanedSentence;
-    const token = ++sequence;
-    studyDraft = { ...emptyDraft(isWordQuery ? 'word' : 'sentence'), text: query, source: source?.source || '', page: source?.page || 0, example: isWordQuery ? source?.example || '' : '' };
-    const saveButton = document.querySelector<HTMLButtonElement>('#dictionary-save');
-    if (saveButton) { saveButton.hidden = false; saveButton.textContent = isWordQuery ? '＋ 단어장에 저장' : '＋ 문장 모음에 저장'; }
-    abort?.abort();
-    abort = new AbortController();
-    const signal = abort.signal;
-    input.value = query;
-    title.textContent = isWordQuery ? word : (query.length > 42 ? query.slice(0, 42) + '…' : query);
-    document.querySelector('#dictionary-empty')!.setAttribute('hidden', '');
-    document.querySelector('#dictionary-content')!.removeAttribute('hidden');
-    if (isSentenceQuery) {
-      en.replaceChildren();
-      const hint = element('p', '문장 속 단어를 누르면 단어 사전으로 바로 이동해요.', 'muted');
-      const wrap = document.createElement('div');
-      wrap.style.display = 'flex'; wrap.style.flexWrap = 'wrap'; wrap.style.gap = '6px'; wrap.style.marginTop = '8px';
-      const words = [...new Set(query.split(/[^a-zA-Z'’-]+/).map(w => normalizeWord(w)).filter(w => w.length >= 2))].slice(0, 18);
-      for (const w of words) {
-        const chip = element('button', w, 'word-chip');
-        chip.type = 'button';
-        chip.onclick = () => void search(w, { source: source?.source || '', page: source?.page || 0, example: query });
-        wrap.append(chip);
-      }
-      en.append(hint, wrap);
-      message(ko, '문장을 번역하고 있어요…');
-    } else {
-      message(en, '영영 뜻을 찾고 있어요…'); message(ko, '영한 뜻을 찾고 있어요…');
-      const index = history.indexOf(word); if (index >= 0) history.splice(index, 1);
-      history.unshift(word); history.splice(7);
-      recent.replaceChildren(...history.map(w => {
-        const button = element('button', w, 'word-chip'); button.type = 'button';
-        button.onclick = () => void search(w); return button;
-      }));
-    }
-    // Korean lookup: Online API first, built-in local dictionary fallback when offline or unfound
-    void (async () => {
-      if (koCache.has(query)) {
-        const cached = koCache.get(query)!;
-        if (cached) renderOnlineKorean(cached, token, isSentenceQuery);
-        else if (isWordQuery) renderLocalKorean(word, token);
-        else message(ko, '문장 번역 결과를 가져오지 못했어요.');
-        return;
-      }
-      try {
-        const koUrl = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&dt=bd&q=' + encodeURIComponent(query);
-        const response = await fetch(koUrl, { signal });
-        if (!response.ok) throw new Error('Korean API error');
-        const data = await response.json();
-        const parsed = parseOnlineKorean(data, query);
-        if (!parsed) {
-          koCache.set(query, null);
-          if (isWordQuery) renderLocalKorean(word, token);
-          else message(ko, '번역할 수 없는 문장이에요.');
-          return;
-        }
-        koCache.set(query, parsed);
-        renderOnlineKorean(parsed, token, isSentenceQuery);
-      } catch {
-        if (signal.aborted && token !== sequence) return;
-        if (isWordQuery) renderLocalKorean(word, token);
-        else message(ko, '오프라인 상태여서 문장 번역 API에 연결할 수 없어요. 개별 단어를 눌러 내장 영한 사전을 이용해 보세요.');
-      }
-    })();
-    if (isSentenceQuery) return;
-    const renderEnglish = (entries: EnglishEntry[] | null) => {
-      if (token !== sequence) return;
-      if (!entries) { message(en, '등록된 영영 뜻이 없어요. 다른 형태의 단어로 검색해 보세요.'); return; }
-      const firstDefinition = entries[0]?.meanings[0]?.definitions[0];
-      studyDraft.english = firstDefinition?.definition || '';
-      studyDraft.example ||= firstDefinition?.example || '';
-      en.replaceChildren();
-      for (const entry of entries) {
-        const phonetic = entry.phonetic || entry.phonetics?.find(p => p.text)?.text;
-        if (phonetic) en.append(element('p', phonetic, 'phonetic'));
-        for (const meaning of entry.meanings) {
-          en.append(element('span', meaning.partOfSpeech, 'pos'));
-          const list = document.createElement('ol');
-          for (const definition of meaning.definitions.slice(0, 5)) {
-            const item = element('li', definition.definition);
-            if (definition.example) item.append(element('p', definition.example, 'example'));
-            list.append(item);
-          }
-          en.append(list);
-        }
-        const source = entry.sourceUrls?.find(url => url.startsWith('https://'));
-        if (source) { const link = element('a', '정의 출처 ↗', 'source-link'); link.href = source; link.target = '_blank'; link.rel = 'noopener noreferrer'; en.append(link); }
-      }
-    };
-    if (cache.has(word)) { renderEnglish(cache.get(word)!); return; }
-    const timeout = window.setTimeout(() => abort?.signal === signal && abort.abort(), 12000);
-    try {
-      const response = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(word), { signal });
-      if (response.status === 404) { cache.set(word, null); renderEnglish(null); return; }
-      if (!response.ok) throw new Error('API error');
-      const entries: EnglishEntry[] = await response.json();
-      cache.set(word, entries); renderEnglish(entries);
-    } catch {
-      if (token === sequence) message(en, '영영 사전에 연결할 수 없어요. 인터넷 연결을 확인한 뒤 다시 검색해 주세요. 영한 사전은 계속 사용할 수 있어요.');
-    } finally { clearTimeout(timeout); }
+    const record: SearchRecord = { id: crypto.randomUUID(), query: isWord ? word : cleaned, kind: isWord ? 'word' : 'sentence', pos: 'all', source: {
+      source: (source?.source || '').slice(0, 500), page: source?.page || 0, example: (source?.example || '').slice(0, 4000),
+    } };
+    addSearch(history, record); await activate(record);
   }
   form.onsubmit = event => { event.preventDefault(); void search(input.value); };
   input.oninput = () => input.setCustomValidity('');
+  navigation();
+  if (current()) queueMicrotask(() => void activate(current()));
   return search;
 }

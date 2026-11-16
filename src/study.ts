@@ -141,6 +141,7 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
       if (editorOwner !== owner()) throw new Error('계정이 바뀌었어요. 현재 계정에서 다시 저장해 주세요.');
       const get = (key: string) => $<HTMLInputElement>('study-' + key).value.trim();
       const entry: StudyEntry = { id: editorEntry?.id || crypto.randomUUID(), kind: editorKind, text: get('text'), english: editorKind === 'word' ? get('english') : '', korean: get('korean'), example: editorKind === 'word' ? get('example') : '', note: get('note'), source: get('source'), page: Number(get('page')), learned: editorEntry?.learned || false, createdAt: editorEntry?.createdAt || Date.now(), updatedAt: Date.now() };
+      if (entry.english.length > 4000 || entry.korean.length > 4000) throw new Error('뜻은 영영·영한 각각 총 4,000자까지 저장할 수 있어요. 긴 설명을 줄이거나 품사별로 나누어 저장해 주세요. 입력한 내용은 그대로 유지됩니다.');
       if (!validEntry(entry)) throw new Error('내용과 페이지 번호를 확인해 주세요.');
       if (remote?.user) cloud!.save(entry, !editorEntry);
       else { await writeLocal([entry]); channel?.postMessage('changed'); await refreshLocal(); }

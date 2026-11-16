@@ -4,7 +4,7 @@ const seenKey = 'leaf-tour-seen';
 type Step = { target: string; title: string; body: string; demo?: boolean };
 const steps: Step[] = [
   { target: '#open-button', title: '내 PDF로 시작하세요', body: '여기를 눌러 내 폴더의 PDF를 엽니다. 파일을 화면에 끌어놓아도 돼요. PDF 원본은 업로드하지 않습니다.' },
-  { target: '#dictionary-form', title: '모르는 표현의 뜻 찾기', body: 'PDF의 단어를 두 번 클릭하면 사전에 뜻이 나옵니다. 여기에 단어나 문장을 직접 입력할 수도 있어요.' },
+  { target: '#dictionary-form', title: '모르는 표현의 뜻 찾기', body: 'PDF 단어를 두 번 클릭하거나 여기에 입력하세요. 품사마다 영영·영한 뜻을 각각 3개까지 골라 저장하고, 이전·다음 버튼으로 최근 검색 3개를 다시 볼 수 있어요.' },
   { target: '[data-tour-color]', title: '드래그하면 형광펜 메뉴가 열려요', body: '이 화면은 선택 메뉴 예시입니다. 실제 PDF에서 단어나 문장을 드래그한 뒤 색을 누르면 형광펜이 칠해집니다.', demo: true },
   { target: '[data-tour-word]', title: '여기서 바로 단어장에 추가', body: '사전으로 이동하지 않아도 됩니다. 단어를 선택하고 이 버튼을 누르면 원문·예문·출처를 채운 저장 창이 열려요. 뜻을 확인하거나 직접 입력한 뒤 저장하세요.', demo: true },
   { target: '[data-tour-sentence]', title: '문장은 따로 모으세요', body: '문장을 선택한 뒤 문장 저장을 누르세요. 이미 조회한 번역이 있으면 함께 채웁니다. 새로 칠한 형광펜을 다시 눌러 단어·문장을 저장할 수도 있어요.', demo: true },

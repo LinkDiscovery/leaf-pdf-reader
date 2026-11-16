@@ -1,5 +1,25 @@
 /* UI typography only. PDF.js text-layer geometry and PDF scale remain independent. */
 :root { font-size: 16px; --muted: #5f7065; }
+.dictionary-history-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.dictionary-history-controls .button { padding: 7px 10px; min-height: 38px; font-size: .875rem; }
+#dictionary-position { flex: 1; text-align: center; font-size: .875rem; color: #52684b; }
+#dictionary-save { position: sticky; top: 0; z-index: 2; width: 100%; margin: 8px 0 12px; background: #f4f8ed; }
+#dictionary-picks { padding: 12px; margin-bottom: 20px; background: #f5f8f0; border: 1px solid #d8e1d1; border-radius: 8px; }
+#dictionary-picks label { display: block; font-size: .875rem; margin-bottom: 7px; }
+#dictionary-pos { width: 100%; min-height: 40px; font-size: .9375rem; }
+#dictionary-choice-status { font-size: .875rem; line-height: 1.65; margin: 10px 0 0; color: #52684b; }
+.definition-section h4 { flex-wrap: wrap; gap: 6px; }
+.meaning-count { white-space: nowrap; margin-left: auto; color: #426330; }
+.meaning-choice { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 8px; align-items: start; cursor: pointer; }
+.meaning-check { width: 18px; height: 18px; margin: .35em 0 0; accent-color: #41613c; }
+.meaning-check:disabled { cursor: not-allowed; }
+.en-translation { font-size: var(--dictionary-font-size, 16px); line-height: 1.7; overflow-wrap: anywhere; }
+.en-meaning-group { margin-bottom: 20px; }
+.dictionary-supplement { margin-left: 8px; font-size: .875rem; color: #52684b; }
+.recent-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+#recent-words .word-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#recent-words [aria-current="true"] { border-color: #426330; background: #e7efdf; font-weight: 600; }
+.sentence-word-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 button, input, textarea, select { font-family: inherit; }
 dialog p { font-size: 1rem; line-height: 1.7; color: #53654d; }
 .topbar { height: auto; min-height: 80px; padding-block: 12px; gap: 22px; }
@@ -63,6 +83,8 @@ dialog p { font-size: 1rem; line-height: 1.7; color: #53654d; }
 .study-summary > div { display: flex; flex-wrap: wrap; }
 .study-search { min-width: 0; }
 #study-editor input, #study-editor textarea { font-size: 1rem; }
+#study-word-fields:not([hidden]) { display: block; }
+#study-editor #study-english, #study-editor #study-korean { min-height: 110px; }
 #study-editor h2, #study-delete-dialog h2 { font-size: 1.4rem; }
 #welcome { max-width: 1000px; padding: 30px clamp(20px, 4vw, 48px); }
 #welcome h1 { font-size: 2.25rem; line-height: 1.4; margin-bottom: 12px; }
