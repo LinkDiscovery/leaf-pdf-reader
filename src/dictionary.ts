@@ -1,4 +1,4 @@
-import { addSearch, boundedSenses, canonicalPos, historyKey, initializeSelection, lookupDraft, posLabels, restoreHistory, selection, senseKey, setSelection, visibleSenses, type Language, type Lookup, type ReadingSource, type SearchRecord, type Sense } from './dictionary-history';
+import { addSearch, boundedSenses, canonicalPos, historyKey, initializeSelection, lookupDraft, posLabels, selection, senseKey, setSelection, visibleSenses, type DictionaryHistory, type Language, type Lookup, type ReadingSource, type SearchRecord, type Sense } from './dictionary-history';
 import { emptyDraft, type StudyDraft } from './study-model';
 import type { WordAudio } from './word-audio';
 let studyDraft: StudyDraft = emptyDraft('word');
@@ -89,22 +89,20 @@ function parseOnlineKorean(raw: unknown, queryWord: string): OnlineKoreanResult 
   if (!primary && !groups.length) return null;
   return { primary, groups };
 }
-export function setupDictionary(audio: WordAudio) {
+export function setupDictionary(audio: WordAudio, readingSource: () => ReadingSource = () => ({ source: '', page: 0, example: '' })) {
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
   const form = $<HTMLFormElement>('dictionary-form'), input = $<HTMLInputElement>('word-input'), title = $('word-title');
   const heading = element('div', '', 'dictionary-word-heading'); title.before(heading); heading.append(title);
   const audioSlot = element('span', ''); audioSlot.id = 'dictionary-audio'; heading.append(audioSlot);
   const en = $('english-result'), ko = $('korean-result'), recent = $('recent-words');
   const pos = $<HTMLSelectElement>('dictionary-pos'), status = $('dictionary-choice-status');
-  let history = restoreHistory(null);
-  try { history = restoreHistory(localStorage.getItem(historyKey)); } catch { /* Memory history remains available. */ }
+  const history: DictionaryHistory = { entries: [], index: -1 };
+  // Remove only legacy lookup history. Saved study entries use separate storage.
+  try { localStorage.removeItem(historyKey); } catch { /* Storage may be unavailable. */ }
+  input.value = '';
   let sequence = 0, abort: AbortController | undefined;
   void localDictionary().catch(() => {});
 
-  function persist() {
-    try { localStorage.setItem(historyKey, JSON.stringify({ version: 1, ...history })); }
-    catch { status.textContent = '기기 저장 공간을 사용할 수 없어 검색 기록은 이 화면에서만 유지됩니다.'; }
-  }
   function current() { return history.entries[history.index]; }
   function navigation() {
     $<HTMLButtonElement>('dictionary-back').disabled = history.index <= 0;
@@ -119,7 +117,7 @@ export function setupDictionary(audio: WordAudio) {
       button.onclick = () => { history.index = i; void activate(entry); };
       recent.append(button);
     }
-    if (!history.entries.length) recent.append(element('span', '최근 검색 3개와 선택한 뜻을 이 브라우저에 보관해요.', 'muted'));
+    if (!history.entries.length) recent.append(element('span', '열어 둔 동안 최근 검색 3개를 기억해요. 새로고침하거나 다시 열면 비워집니다.', 'muted'));
   }
   function updateChoices(record: SearchRecord) {
     for (const language of ['english', 'korean'] as const) {
@@ -137,7 +135,6 @@ export function setupDictionary(audio: WordAudio) {
     studyDraft = lookupDraft(record);
     const save = $<HTMLButtonElement>('dictionary-save');
     if (save) { save.hidden = false; save.textContent = record.kind === 'word' ? '＋ 단어장에 저장' : '＋ 문장 모음에 저장'; }
-    persist();
   }
   function choice(record: SearchRecord, language: Language, sense: Sense, strong: boolean) {
     const label = element('label', '', 'meaning-choice');
@@ -228,13 +225,15 @@ export function setupDictionary(audio: WordAudio) {
   };
   $('dictionary-back').onclick = () => { if (history.index > 0) { history.index--; void activate(current()); } };
   $('dictionary-forward').onclick = () => { if (history.index < history.entries.length - 1) { history.index++; void activate(current()); } };
-  $('dictionary-history-clear').onclick = () => {
+  function clearHistory() {
     sequence++; abort?.abort(); audio.stop(); audioSlot.replaceChildren(); cache.clear(); koCache.clear();
     history.entries = []; history.index = -1; studyDraft = emptyDraft('word'); input.value = '';
     $('dictionary-content').hidden = true; $('dictionary-empty').hidden = false;
     const save = $('dictionary-save'); if (save) save.hidden = true;
-    navigation(); persist();
-  };
+    navigation();
+  }
+  $('dictionary-history-clear').onclick = clearHistory;
+  window.addEventListener('pageshow', event => { if (event.persisted) clearHistory(); });
 
   async function localSenses(word: string): Promise<Sense[]> {
     try {
@@ -324,6 +323,7 @@ export function setupDictionary(audio: WordAudio) {
     }));
   }
   async function search(value: string, source?: ReadingSource) {
+    source ??= readingSource();
     const original = value;
     if (/[-\u00ad]/.test(value)) {
       const token = ++sequence; abort?.abort();
@@ -346,6 +346,5 @@ export function setupDictionary(audio: WordAudio) {
   form.onsubmit = event => { event.preventDefault(); void search(input.value); };
   input.oninput = () => input.setCustomValidity('');
   navigation();
-  if (current()) queueMicrotask(() => void activate(current()));
   return search;
 }

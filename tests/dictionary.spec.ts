@@ -64,8 +64,6 @@ test('each part of speech allows three meanings per language, preserves choices 
   await expect(en.first()).toBeChecked(); await expect(ko.first()).toBeChecked();
   await page.locator('#dictionary-pos').selectOption('all');
   await expect(en.nth(2)).toBeChecked(); await expect(ko.nth(2)).toBeChecked();
-  await page.reload();
-  await expect(en.nth(2)).toBeChecked(); await expect(ko.nth(2)).toBeChecked();
   await page.locator('#dictionary-save').click();
   await expect(page.locator('#study-english')).toHaveValue('[명사] Recorded information.\n[명사] A data entry.\n[명사] A best achievement.\n[동사] To preserve information.\n[형용사] Greater than any before.');
   await expect(page.locator('#study-korean')).toHaveValue('[명사] 기록\n[명사] 자료\n[명사] 최고 기록\n[동사] 기록하다\n[형용사] 기록적인');
@@ -85,7 +83,7 @@ test('each part of speech allows three meanings per language, preserves choices 
   await expect(page.locator('.study-card').filter({ hasText: '[동사] 기록하다' })).toHaveCount(2);
 });
 
-test('three-search history restores choices and cached meanings across navigation and reload', async ({ page }) => {
+test('three-search history restores choices within the open app and clears on reload', async ({ page }) => {
   await dictionaryFixture(page); await lookup(page, 'record');
   await page.locator('#dictionary-pos').selectOption('verb');
   await page.locator('#english-result .meaning-check').nth(0).uncheck(); await page.locator('#english-result .meaning-check').nth(1).check();
@@ -100,7 +98,6 @@ test('three-search history restores choices and cached meanings across navigatio
   let requests = 0;
   await page.route('https://api.dictionaryapi.dev/**', route => { requests++; return route.abort('internetdisconnected'); });
   await page.route('https://translate.googleapis.com/**', route => { requests++; return route.abort('internetdisconnected'); });
-  await page.reload();
   await expect(page.locator('#word-title')).toHaveText('record');
   await expect(page.locator('#korean-result .meaning-check').nth(1)).toBeChecked();
   await expect(page.locator('#dictionary-back')).toBeDisabled();
@@ -113,9 +110,27 @@ test('three-search history restores choices and cached meanings across navigatio
   await page.locator('#word-input').fill('fifthword'); await page.locator('#word-input').press('Enter');
   await expect(page.locator('#recent-words button')).toHaveCount(3);
   await expect(page.locator('#recent-words')).not.toContainText('record');
+  await page.reload(); await expect(page.locator('#recent-words button')).toHaveCount(0);
+  await expect(page.locator('#word-input')).toHaveValue(''); await expect(page.locator('#dictionary-content')).toBeHidden();
+  await page.locator('#word-input').fill('freshword'); await page.locator('#word-input').press('Enter');
+  await expect(page.locator('#recent-words button')).toHaveCount(1);
   await page.locator('#dictionary-history-clear').click();
   await expect(page.locator('#dictionary-content')).toBeHidden();
   await page.reload(); await expect(page.locator('#recent-words button')).toHaveCount(0);
+});
+
+test('closing and reopening clears lookup history, removes legacy cache, and keeps saved words', async ({ page, context }) => {
+  await dictionaryFixture(page); await lookup(page, 'record');
+  await page.locator('#dictionary-save').click(); await page.locator('#study-submit').click();
+  await expect(page.locator('#study-editor')).toBeHidden();
+  await page.getByRole('tab', { name: '나의 단어장' }).click(); await expect(page.locator('.study-card')).toContainText('record');
+  await page.evaluate(() => localStorage.setItem('leaf-dictionary-history-v1', JSON.stringify({ version: 1, index: 0, entries: [{ id: 'old', query: 'oldword', kind: 'word', pos: 'all', source: { source: '', page: 0, example: '' } }] })));
+  await page.close();
+  const reopened = await context.newPage(); await dictionaryFixture(reopened);
+  await expect(reopened.locator('#recent-words button')).toHaveCount(0);
+  await expect(reopened.locator('#dictionary-content')).toBeHidden();
+  expect(await reopened.evaluate(() => localStorage.getItem('leaf-dictionary-history-v1'))).toBeNull();
+  await reopened.getByRole('tab', { name: '나의 단어장' }).click(); await expect(reopened.locator('.study-card')).toContainText('record');
 });
 
 test('returning to a PDF lookup preserves its source and example after another search', async ({ page }) => {

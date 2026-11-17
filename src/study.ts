@@ -9,7 +9,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className = '') {
   const element = document.createElement(tag); element.textContent = text; element.className = className; return element;
 }
-export function setupStudy(notify: (message: string) => void, audio: WordAudio) {
+export function setupStudy(notify: (message: string) => void, audio: WordAudio, readingSource: () => { source: string; page: number } = () => ({ source: '', page: 0 })) {
   const fragment = document.createElement('template'); fragment.innerHTML = layout;
   document.querySelector('.topbar')!.after(fragment.content);
   const workspace = document.querySelector<HTMLElement>('.workspace')!;
@@ -27,6 +27,8 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
   let scrollTop = 0;
   let epoch = 0;
   let importing = false;
+  const paper = $<HTMLSelectElement>('study-paper');
+  const paperKey = (entry: StudyEntry) => entry.source.trim();
   const editor = $<HTMLDialogElement>('study-editor');
   const channel = typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel('leaf-study-local');
   const owner = () => remote?.user?.uid || 'local';
@@ -58,16 +60,33 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
     const query = $<HTMLInputElement>('study-search').value.toLocaleLowerCase().trim();
     const filter = $<HTMLSelectElement>('study-filter').value;
     const all = entries.filter(entry => entry.kind === view);
-    const visible = all.filter(entry => (filter === 'all' || entry.learned === (filter === 'learned'))
+    const selectedPaper = paper.value;
+    const sources = [...new Set(entries.map(paperKey).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+    paper.replaceChildren();
+    for (const [value, label] of [['all', '모든 논문'], ['none', '논문 미지정'], ...sources.map(source => ['paper:' + source, source])]) {
+      const option = node('option', label); option.value = value; paper.append(option);
+    }
+    paper.value = [...paper.options].some(option => option.value === selectedPaper) ? selectedPaper : 'all';
+    const visible = all.filter(entry => (paper.value === 'all' || (paper.value === 'none' ? !paperKey(entry) : paperKey(entry) === paper.value.slice(6)))
+      && (filter === 'all' || entry.learned === (filter === 'learned'))
       && [entry.text, entry.english, entry.korean, entry.example, entry.note, entry.source].some(text => text.toLocaleLowerCase().includes(query)))
       .sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id));
     $('study-count').textContent = `${visible.length}개 / 전체 ${all.length}개 · 외웠어요 ${all.filter(entry => entry.learned).length}개`;
     $('study-empty').hidden = !ready || visible.length > 0;
-    $('study-empty').querySelector('h2')!.textContent = query || filter !== 'all' ? '조건에 맞는 기록이 없어요' : '아직 모아 둔 기록이 없어요';
+    $('study-empty').querySelector('h2')!.textContent = query || filter !== 'all' || paper.value !== 'all' ? '조건에 맞는 기록이 없어요' : '아직 모아 둔 기록이 없어요';
     $('study-more').hidden = visible.length <= limit;
     const conceal = $<HTMLInputElement>('study-hide').checked;
     const list = $('study-list'); audio.stopWithin(list); list.replaceChildren();
+    const groups = new Map<string, HTMLElement>();
+    const totals = new Map<string, number>();
+    for (const entry of visible) totals.set(paperKey(entry), (totals.get(paperKey(entry)) || 0) + 1);
     for (const entry of visible.slice(0, limit)) {
+      const source = paperKey(entry);
+      if (!groups.has(source)) {
+        const group = node('section', '', 'study-paper-group'); group.dataset.source = source;
+        group.append(node('h2', `${source || '논문 미지정'} · ${totals.get(source)}개`, 'study-paper-heading'));
+        const cards = node('div', '', 'study-paper-cards'); group.append(cards); list.append(group); groups.set(source, cards);
+      }
       const card = node('article', '', 'study-card'); card.dataset.id = entry.id;
       const heading = node('div', '', 'study-card-heading');
       heading.append(node('h2', entry.text));
@@ -87,7 +106,7 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
       const actions = node('div', '', 'study-card-actions');
       actions.append(button(entry.learned ? '다시 학습' : '외웠어요', () => void learned(entry)), button('수정', () => openEditor(entry, entry)), button('삭제', () => void remove(entry), 'text-button danger'));
       for (const action of actions.querySelectorAll('button')) action.disabled = !ready || importing;
-      footer.append(actions); card.append(footer); list.append(card);
+      footer.append(actions); card.append(footer); groups.get(source)!.append(card);
     }
   }
   function switchView(next: typeof view) {
@@ -103,7 +122,7 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
     else {
       $('study-panel').setAttribute('aria-labelledby', next === 'word' ? 'tab-words' : 'tab-sentences');
       $('study-title').textContent = next === 'word' ? '나의 단어장' : '나의 문장';
-      $('study-description').textContent = next === 'word' ? '읽다가 만난 단어를, 내 표현으로 기억하세요.' : '다시 읽고 싶은 문장을 한곳에 모아 보세요.';
+      $('study-description').textContent = next === 'word' ? '논문별로 모은 단어를 골라 복습하세요.' : '논문별로 모은 문장을 다시 읽어 보세요.';
     }
     render();
   }
@@ -117,6 +136,10 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
   });
   function openEditor(draft: StudyDraft, existing?: StudyEntry) {
     if (!ready) { notify('학습 기록을 준비 중이에요. 잠시 후 다시 눌러 주세요.'); return; }
+    const sourceOptions = $('study-source-options'); sourceOptions.replaceChildren();
+    for (const source of [...new Set(entries.map(paperKey).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'))) {
+      const option = node('option'); option.value = source; sourceOptions.append(option);
+    }
     editorEntry = existing; editorKind = draft.kind; editorOwner = owner();
     $('study-editor-title').textContent = `${draft.kind === 'word' ? '단어' : '문장'} ${existing ? '수정' : '저장'}`;
     $('study-text-label').textContent = draft.kind === 'word' ? '단어' : '영어 문장';
@@ -129,11 +152,16 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
     duplicate(); editor.showModal();
   }
   function duplicate() {
-    $('study-duplicate').hidden = !entries.some(entry => entry.kind === editorKind && entry.id !== editorEntry?.id && entry.text.toLocaleLowerCase() === $<HTMLTextAreaElement>('study-text').value.trim().toLocaleLowerCase());
+    $('study-duplicate').hidden = !entries.some(entry => entry.kind === editorKind && entry.id !== editorEntry?.id && paperKey(entry) === $<HTMLInputElement>('study-source').value.trim() && entry.text.toLocaleLowerCase() === $<HTMLTextAreaElement>('study-text').value.trim().toLocaleLowerCase());
   }
   $('study-text').oninput = duplicate;
+  $('study-source').oninput = duplicate;
   $('study-cancel').onclick = $('study-dismiss').onclick = () => editor.close();
-  $('study-add').onclick = () => openEditor(emptyDraft(view === 'sentence' ? 'sentence' : 'word'));
+  $('study-add').onclick = () => {
+    const context = readingSource();
+    const source = paper.value.startsWith('paper:') ? paper.value.slice(6) : paper.value === 'none' ? '' : context.source;
+    openEditor({ ...emptyDraft(view === 'sentence' ? 'sentence' : 'word'), source, page: source && source === context.source ? context.page : 0 });
+  };
   $<HTMLFormElement>('study-form').onsubmit = async event => {
     event.preventDefault();
     const submit = $<HTMLButtonElement>('study-submit'); submit.disabled = true;
@@ -166,6 +194,7 @@ export function setupStudy(notify: (message: string) => void, audio: WordAudio) 
     } catch { showError('삭제하지 못했어요. 다시 시도해 주세요.'); }
   }
   $('study-search').oninput = $('study-filter').onchange = $('study-hide').onchange = () => { limit = 40; render(); };
+  paper.onchange = () => { limit = 40; render(); };
   $('study-more').onclick = () => { limit += 40; render(); };
   $('study-export').onclick = () => {
     const url = URL.createObjectURL(new Blob([JSON.stringify({ format: 'leaf-study', version: 1, exportedAt: new Date().toISOString(), entries }, null, 2)], { type: 'application/json' }));

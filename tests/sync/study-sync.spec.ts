@@ -62,15 +62,20 @@ test('three meanings for each of three parts of speech sync intact to another de
       const checks = first.locator(`${panel} .meaning-check[data-pos="${pos}"]`);
       await checks.nth(1).check(); await checks.nth(2).check(); await expect(checks.nth(3)).toBeDisabled();
     }
-    await first.reload();
     await expect(first.locator('#dictionary-en-count')).toHaveText('선택 9개 · 품사별 3개');
     await expect(first.locator('#dictionary-ko-count')).toHaveText('선택 9개 · 품사별 3개');
     await expect(first.locator('#study-sync')).toContainText('동기화 완료');
     await first.locator('#dictionary-save').click();
     await expect(first.locator('#study-english')).toHaveValue(english); await expect(first.locator('#study-korean')).toHaveValue(korean);
+    await first.locator('#study-source').fill('논문 A.pdf');
     await first.locator('#study-submit').click();
     await expect(second.locator('.study-card')).toContainText('testword');
+    await second.locator('#study-paper').selectOption({ label: '논문 A.pdf' });
+    await expect(second.locator('.study-paper-heading')).toHaveText('논문 A.pdf · 1개');
     await second.locator('.study-card').getByRole('button', { name: '수정' }).click();
     await expect(second.locator('#study-english')).toHaveValue(english); await expect(second.locator('#study-korean')).toHaveValue(korean);
+    await expect(second.locator('#study-source')).toHaveValue('논문 A.pdf');
+    await second.locator('#study-source').fill('논문 B.pdf'); await second.locator('#study-submit').click();
+    await first.getByRole('tab', { name: '나의 단어장' }).click(); await expect(first.locator('.study-paper-heading')).toHaveText('논문 B.pdf · 1개');
   } finally { await a.close(); await b.close(); }
 });

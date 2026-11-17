@@ -63,27 +63,3 @@ export function addSearch(history: DictionaryHistory, record: SearchRecord) {
   if (history.entries.at(-1)?.query === record.query) history.entries.pop();
   history.entries.push(record); history.entries = history.entries.slice(-3); history.index = history.entries.length - 1;
 }
-
-export function restoreHistory(raw: string | null): DictionaryHistory {
-  const empty = { entries: [], index: -1 };
-  if (!raw || raw.length > 4000000) return empty;
-  const text = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max;
-  const stringList = (value: unknown, count: number, size: number) => Array.isArray(value) && value.length <= count && value.every(item => text(item, size));
-  const validLookup = (value: any, maxText = 1200) => value === undefined || (value && text(value.label, 80) && (value.error === undefined || text(value.error, 500)) && Array.isArray(value.senses) && value.senses.length <= 60
-    && value.senses.every((sense: any) => sense && text(sense.pos, 30) && text(sense.text, maxText) && (sense.example === undefined || text(sense.example, 4000)) && (sense.detail === undefined || text(sense.detail, 2000)) && (sense.headword === undefined || text(sense.headword, 100)))
-    && (value.phonetics === undefined || stringList(value.phonetics, 10, 200)) && (value.sources === undefined || stringList(value.sources, 10, 2000)));
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed.version !== 1 || !Array.isArray(parsed.entries) || parsed.entries.length > 3 || !Number.isInteger(parsed.index)) return empty;
-    const entries: SearchRecord[] = parsed.entries;
-    if (!entries.every(record => record && text(record.id, 100) && text(record.query, 1000) && record.query.trim() && ['word', 'sentence'].includes(record.kind)
-      && record.source && text(record.source.source, 500) && text(record.source.example, 4000) && Number.isInteger(record.source.page) && record.source.page >= 0 && record.source.page <= 1000000
-      && (record.pos === 'all' || Object.hasOwn(posLabels, record.pos)) && validLookup(record.english) && validLookup(record.korean, record.kind === 'sentence' ? 4000 : 1200)
-      && (record.selectedEnglish === undefined || stringList(record.selectedEnglish, 60, 7500)) && (record.selectedKorean === undefined || stringList(record.selectedKorean, 60, 7500)))) return empty;
-    if (entries.length && (parsed.index < 0 || parsed.index >= entries.length)) return empty;
-    for (const record of entries) for (const language of ['english', 'korean'] as const) {
-      if ((language === 'english' ? record.selectedEnglish : record.selectedKorean) !== undefined) setSelection(record, language, selection(record, language));
-    }
-    return { entries, index: entries.length ? parsed.index : -1 };
-  } catch { return empty; }
-}

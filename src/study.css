@@ -19,6 +19,12 @@
 .study-review { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
 .study-summary { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; margin: 20px 0; color: #65746a; font-size: 13px; }
 .study-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.study-paper-group { grid-column: 1 / -1; min-width: 0; }
+.study-paper-heading { font-size: 1.15rem; line-height: 1.5; overflow-wrap: anywhere; margin: 12px 0; }
+.study-paper-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.study-paper-filter { min-width: 180px; max-width: 100%; flex: 1; }
+.study-paper-filter > span { display: block; font-size: .875rem; margin-bottom: 6px; }
+@media(max-width: 720px) { .study-paper-cards { grid-template-columns: 1fr; } .study-paper-filter { flex-basis: 100%; } }
 .study-card { padding: 24px; background: white; border: 1px solid #dfe6dc; border-radius: 14px; overflow-wrap: anywhere; }
 .study-card-heading { display: flex; gap: 10px; align-items: start; justify-content: space-between; }
 .study-card h2 { font-size: 23px; line-height: 1.5; white-space: pre-wrap; margin: 0 0 14px; }
