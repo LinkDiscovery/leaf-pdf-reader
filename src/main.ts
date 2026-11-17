@@ -4,11 +4,12 @@ import { exportAnnotatedPdf } from './export';
 import { setupReadingPreferences } from './preferences';
 import layout from './app.html?raw';
 import { documentHash, getHighlights, saveHighlights, colors, type Highlight, type Region, type Color } from './storage';
-import { setupDictionary, dictionaryStudyDraft } from './dictionary';
+import { setupDictionary, dictionaryStudyDraft, normalizeReadingText } from './dictionary';
 import { setupStudy } from './study';
 import { setupHelp } from './help';
 import { type StudyKind } from './study-model';
 import { setupWordAudio } from './word-audio';
+import { setupSelectionFeedback } from './selection-feedback';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import './style.css';
 import './readability.css';
@@ -38,11 +39,14 @@ wordSave.id = 'selection-word-save'; wordSave.className = 'text-button'; wordSav
 sentenceSave.before(wordSave);
 wordSave.onclick = () => saveSelection('word');
 sentenceSave.onclick = () => saveSelection('sentence');
-function saveSelection(kind: StudyKind) {
+async function saveSelection(kind: StudyKind) {
   const highlight = highlights.find(h => h.id === editingId);
-  const text = (highlight?.quote || selectedText).replace(/\s+/g, ' ').trim();
-  if (!text) { notify('저장할 원문을 다시 드래그해 주세요. 이전에 만든 일부 형광펜에는 원문이 남아 있지 않아요.'); return; }
+  const identity = documentId;
+  const raw = highlight?.quote || selectedText;
   const pageIndex = (highlight?.regions || selectedRegions)[0]?.pageIndex ?? current - 1;
+  const text = (await normalizeReadingText(raw)).replace(/\s+/g, ' ').trim();
+  if (identity !== documentId) return;
+  if (!text) { notify('저장할 원문을 다시 드래그해 주세요. 이전에 만든 일부 형광펜에는 원문이 남아 있지 않아요.'); return; }
   const lookup = dictionaryStudyDraft();
   const matches = lookup.text.toLocaleLowerCase() === text.toLocaleLowerCase();
   const pageText = [...pages.querySelectorAll(`.pdf-page[data-index="${pageIndex}"] .textLayer span`)].map(span => span.textContent).join(' ');
@@ -80,6 +84,7 @@ let editingId: string | undefined;
 let toastTimer = 0;
 let selectionTimer = 0;
 let zoomTimer = 0;
+const selectionFeedback = setupSelectionFeedback(pages, tools, captureSelection);
 type PageView = { index: number; page: PDFPageProxy; viewport: ReturnType<PDFPageProxy['getViewport']>; element: HTMLElement; canvas?: HTMLCanvasElement; text?: TextLayer; task?: RenderTask; rendering?: Promise<void>; serial: number; mounted: boolean };
 let views: PageView[] = [];
 
@@ -124,6 +129,7 @@ function renderHighlights(view: PageView) {
         selectedRegions = []; selectedText = '';
         $('#delete-highlight').hidden = false; $('#selection-lookup').hidden = true;
         $('#selection-label').textContent = '표시 수정';
+        selectionFeedback.show(highlight.quote || '', true);
         $('#selection-note').textContent = highlight.note ? '메모 보기·수정' : '메모 쓰기';
         $('#delete-highlight').textContent = highlight.note ? '표시·메모 삭제' : '삭제';
         positionTools(mark.getBoundingClientRect());
@@ -358,6 +364,7 @@ function captureSelection() {
   }
   if (!selectedRegions.length || !selectedText) { closeTools(); return; }
   $('#selection-label').textContent = '선택한 문장';
+  selectionFeedback.show(selectedText);
   $('#selection-note').textContent = '메모 쓰기';
   $('#delete-highlight').textContent = '삭제';
   $('#delete-highlight').hidden = true; $('#selection-lookup').hidden = false;
@@ -426,8 +433,6 @@ for (const link of document.querySelectorAll<HTMLAnchorElement>('.ai-link')) {
   });
 }
 $('#close-selection').onclick = closeTools;
-pages.addEventListener('pointerup', () => { clearTimeout(selectionTimer); selectionTimer = window.setTimeout(captureSelection, 30); });
-pages.addEventListener('keyup', captureSelection);
 pages.addEventListener('dblclick', () => {
   const selection = window.getSelection(); const word = selection?.toString().trim();
   if (!word) return;

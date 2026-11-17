@@ -44,6 +44,18 @@ function localDictionary() {
     return r.json();
   }).catch(error => { localPromise = undefined; throw error; });
 }
+export async function normalizeReadingText(value: string) {
+  const text = value.replace(/\u00ad\s*/g, '');
+  if (!/[a-z]-\s*[a-z]/i.test(text)) return text;
+  try {
+    const dictionary = await localDictionary();
+    return text.replace(/\b([a-z]+)-\s*([a-z]+)\b/gi, (original, left: string, right: string) => {
+      const compound = (left + '-' + right).toLowerCase(), joined = (left + right).toLowerCase();
+      if (Object.hasOwn(dictionary.lookup, compound)) return left + '-' + right;
+      return Object.hasOwn(dictionary.lookup, joined) ? left + right : original;
+    });
+  } catch { return text; }
+}
 function parseOnlineKorean(raw: unknown, queryWord: string): OnlineKoreanResult | null {
   if (!Array.isArray(raw)) return null;
   const primary = Array.isArray(raw[0])
@@ -312,6 +324,12 @@ export function setupDictionary(audio: WordAudio) {
     }));
   }
   async function search(value: string, source?: ReadingSource) {
+    const original = value;
+    if (/[-\u00ad]/.test(value)) {
+      const token = ++sequence; abort?.abort();
+      value = await normalizeReadingText(value);
+      if (token !== sequence) return;
+    }
     const cleaned = normalizeSentence(value), word = normalizeWord(value);
     const isWord = word.length > 0 && word.length <= 100 && /^[a-z][a-z'’ -]*$/.test(word) && word.split(/\s+/).length <= 3;
     if (!isWord && !(cleaned.length > 0 && cleaned.length <= 1000 && /[a-zA-Z]/.test(cleaned))) {
@@ -321,7 +339,9 @@ export function setupDictionary(audio: WordAudio) {
     const record: SearchRecord = { id: crypto.randomUUID(), query: isWord ? word : cleaned, kind: isWord ? 'word' : 'sentence', pos: 'all', source: {
       source: (source?.source || '').slice(0, 500), page: source?.page || 0, example: (source?.example || '').slice(0, 4000),
     } };
-    addSearch(history, record); await activate(record);
+    addSearch(history, record); const pending = activate(record);
+    if (original !== value) status.textContent = '하이픈을 정리했어요: ' + normalizeSentence(original) + ' → ' + record.query + '. 품사마다 영영·영한 각각 3개까지 선택하세요.';
+    await pending;
   }
   form.onsubmit = event => { event.preventDefault(); void search(input.value); };
   input.oninput = () => input.setCustomValidity('');

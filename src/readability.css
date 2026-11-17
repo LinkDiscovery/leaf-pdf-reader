@@ -61,6 +61,10 @@ dialog p { font-size: 1rem; line-height: 1.7; color: #53654d; }
 .definition-section h4 i { margin-left: 0; }
 #note-quote, #note-text, #toast { font-size: 1rem; }
 .selection-tools { flex-wrap: wrap; max-width: calc(100vw - 24px); gap: 6px; }
+#selection-tools { width: min(680px, calc(100vw - 24px)); }
+#selection-preview { flex-basis: 100%; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 120px; overflow: auto; font-size: .9375rem; line-height: 1.6; padding: 7px 10px; border-left: 3px solid #467cc6; background: #edf4ff; color: #173b66; }
+#selection-live { position: fixed; bottom: 18px; left: 18px; z-index: 30; max-width: min(620px, calc(100vw - 36px)); padding: 10px 14px; border-radius: 8px; background: #173b66; color: white; pointer-events: none; font-size: 1rem; line-height: 1.6; overflow-wrap: anywhere; box-shadow: 0 3px 15px #0003; }
+.pdf-page .textLayer ::selection { background: #5595ee88; }
 .study-navigation { padding: 8px 24px; gap: 8px 16px; }
 .study-navigation [role=tab] { font-size: 1rem; padding: 12px; }
 .study-account { margin-left: auto; gap: 10px; }
