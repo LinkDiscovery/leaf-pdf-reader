@@ -1,6 +1,6 @@
 # Leaf PDF 리더 (Leaf PDF Reader)
 
-**현재 버전: 1.4.0** · [버전별 업데이트 내역](CHANGELOG.md) · [GitHub Releases](https://github.com/LinkDiscovery/leaf-pdf-reader/releases)
+**현재 버전: 1.4.1** · [버전별 업데이트 내역](CHANGELOG.md) · [GitHub Releases](https://github.com/LinkDiscovery/leaf-pdf-reader/releases)
 
 영어 원서·논문 읽기에 필요한 **영영·영한 사전, 문장 번역, 형광펜·메모, 나의 단어장·문장 모음, AI 바로가기(Claude·GPT·Gemini)**를 한 화면에 담은 PDF 리더입니다. PDF 원본은 브라우저에서 열며 업로드하지 않습니다. 로그인하면 사용자가 저장한 단어·문장과 그 뜻·출처·복습 상태만 Firebase에 동기화합니다.
 

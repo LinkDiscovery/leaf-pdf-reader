@@ -13,17 +13,19 @@
 .study-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 26px; }
 .study-heading h1 { font-size: 32px; margin: 10px 0; line-height: 1.3; }
 .study-heading p { color: #697970; margin: 0; }
-.study-controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; padding: 18px; background: #edf2ec; border-radius: 14px; }
+.study-controls { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; padding: 18px; background: #edf2ec; border-radius: 14px; }
 .study-search { flex: 1; min-width: 200px; }
-.study-controls input[type=search], .study-controls select { width: 100%; border: 1px solid #d6dfd6; border-radius: 8px; padding: 11px 13px; background: white; font: inherit; color: inherit; }
-.study-review { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.study-controls input[type=search], .study-controls select { box-sizing: border-box; width: 100%; height: 3rem; border: 1px solid #d6dfd6; border-radius: 8px; padding: .5rem .75rem; background: white; font: inherit; color: inherit; }
+.study-control-label { display: block; font-size: .875rem; line-height: 1.5; margin-bottom: 6px; }
+.study-status-filter { min-width: 7rem; }
+.study-review { display: flex; align-items: center; gap: 8px; min-height: 3rem; white-space: nowrap; }
+.study-review input { margin: 0; flex-shrink: 0; }
 .study-summary { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; margin: 20px 0; color: #65746a; font-size: 13px; }
 .study-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .study-paper-group { grid-column: 1 / -1; min-width: 0; }
 .study-paper-heading { font-size: 1.15rem; line-height: 1.5; overflow-wrap: anywhere; margin: 12px 0; }
 .study-paper-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .study-paper-filter { min-width: 180px; max-width: 100%; flex: 1; }
-.study-paper-filter > span { display: block; font-size: .875rem; margin-bottom: 6px; }
 @media(max-width: 720px) { .study-paper-cards { grid-template-columns: 1fr; } .study-paper-filter { flex-basis: 100%; } }
 .study-card { padding: 24px; background: white; border: 1px solid #dfe6dc; border-radius: 14px; overflow-wrap: anywhere; }
 .study-card-heading { display: flex; gap: 10px; align-items: start; justify-content: space-between; }
